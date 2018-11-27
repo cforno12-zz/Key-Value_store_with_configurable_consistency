@@ -14,6 +14,7 @@ message PutMsg {
   Consistency level = 3;
 }
 
+//get response
 message StringValue {
   string val = 1;
 }
@@ -22,16 +23,18 @@ message Success {
   bool success = 1;
 }
 
+//this is for reading and writing to replicas
 message Pair {
   uint32 key = 1;
   string val = 2;
 }
+
 message Msg {
   oneof msg {
     PutMsg put = 1;
     GetMsg get = 2;
     StringValue string_val = 3;
-    Pair pair = 4
+    Pair pair = 4;
     Success suc = 5;
   }
 }
