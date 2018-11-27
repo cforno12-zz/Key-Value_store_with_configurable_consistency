@@ -1,0 +1,37 @@
+enum Consistency {
+  ONE = 1;
+  QUORUM = 2;
+}
+
+message GetMsg {
+  uint32 key = 1;
+  Consistency level = 2;
+}
+
+message PutMsg {
+  uint32 key = 1;
+  string val = 2;
+  Consistency level = 3;
+}
+
+message StringValue {
+  string val = 1;
+}
+
+message Success {
+  bool success = 1;
+}
+
+message Pair {
+  uint32 key = 1;
+  string val = 2;
+}
+message Msg {
+  oneof msg {
+    PutMsg put = 1;
+    GetMsg get = 2;
+    StringValue string_val = 3;
+    Pair pair = 4
+    Success suc = 5;
+  }
+}
