@@ -1,6 +1,8 @@
+syntax = "proto3";
+
 enum Consistency {
-  ONE = 1;
-  QUORUM = 2;
+  ONE = 0;
+  QUORUM = 1;
 }
 
 message GetMsg {

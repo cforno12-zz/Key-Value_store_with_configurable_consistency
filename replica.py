@@ -2,6 +2,8 @@ import socket
 import sys
 from pathlib import Path
 
+sys.path.append('/home/vchaska1/protobuf/protobuf-3.5.1/python')
+
 keyValStore = {}
 
 def get(key):
@@ -66,8 +68,6 @@ def main():
             get(key)
 
         elif(request == "put"):
-            key = 4
-            val = "four"
 
             put(key, val)
 
