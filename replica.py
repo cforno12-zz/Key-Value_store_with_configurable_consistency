@@ -1,10 +1,40 @@
-import socket
 import sys
-from pathlib import Path
-
 sys.path.append('/home/vchaska1/protobuf/protobuf-3.5.1/python')
+import socket
+from pathlib import Path
+import store_pb2 as store
+import struct
 
 keyValStore = {}
+replicaNumber = -1
+
+def sendMessage(socket, msg):
+
+	if(type(msg) == store.Msg):
+		
+		msgString = msg.SerializeToString()
+		msgLen = len(msgString)
+		msgHeader = struct.pack(">I", msgLen)
+		socket.sendall(msgHeader + msgString)
+
+	else:
+
+		print("Failed to send")
+
+def readMessage(socket):
+
+	msgHeader = socket.recv(4)
+	msgLen = struct.unpack(">I", msgHeader)[0]
+	msgString = socket.recv(msgLen)
+
+	msgTemplate = store.Msg()
+	msgTemplate.ParseFromString(msgString)
+
+	msgType = msgTemplate.WhichOneof("msg")
+	
+	formattedMessage = eval("msgTemplate." + msgType)
+
+	return formattedMessage
 
 def get(key):
 
@@ -40,15 +70,22 @@ def parseWriteLog():
     writeLogInfo.close()
 
 
-def main():
+def main(args):
+
+    global replicaNumber
+
+    if len(args) != 2:
+        print("python3 replica.py <replica number>")
+        sys.exit(1)
+
+    replicaNumber = args[1]
+
     replicaSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     replicaSocket.bind(("", 0))
 
     hostName = socket.getfqdn()
     portNum = replicaSocket.getsockname()[1]
-    print('\n')
-    print("Starting Server on " + hostName + " with port " + str(portNum))
-    print('\n')
+    print("Starting Replica " + replicaNumber + ": {" + hostName + ":" + str(portNum) + "}")
 
     replicaSocket.listen(10)
 
@@ -57,9 +94,7 @@ def main():
     if(writeLog.exists()):
         parseWriteLog()
 
-    request = "put"
-
-    print(keyValStore)
+    request = ""
 
     while True:
 
@@ -70,12 +105,10 @@ def main():
         elif(request == "put"):
 
             put(key, val)
-
-            request = ""
             break
 
     print(keyValStore)
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv)
