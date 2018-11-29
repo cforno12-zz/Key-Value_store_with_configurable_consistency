@@ -1,9 +1,13 @@
 syntax = "proto3";
 
-enum Consistency {
-  ONE = 0;
-  QUORUM = 1;
+message Consistency {
+  enum Const {
+    ONE = 0;
+    QUORUM = 1;
+  }
+  Const level = 1;
 }
+
 
 message GetMsg {
   uint32 key = 1;
@@ -13,7 +17,7 @@ message GetMsg {
 message PutMsg {
   uint32 key = 1;
   string val = 2;
-  Consistency level = 3;
+  uint32 level = 3;
 }
 
 //get response
