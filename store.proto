@@ -1,17 +1,19 @@
 syntax = "proto3";
 
+//Get request
 message GetMsg {
   uint32 key = 1;
-  uint32 level = 2;
+  uint32 level = 3;
 }
 
+//Put request
 message PutMsg {
   uint32 key = 1;
   string val = 2;
   uint32 level = 3;
 }
 
-//get response
+//Get response
 message StringValue {
   string val = 1;
 }

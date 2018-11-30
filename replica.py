@@ -7,11 +7,36 @@ import struct
 
 class Replica:
     def __init__(self, replica_num, server_socket):
+        self.coordinator = False            #Determines whether to wait or send
         self.socket = server_socket
         self.replica_num = replica_num
         self.hostName = ""
         self.portNum = 0
         self.keyValStore = {}
+        self.replicaList = [None] * 5       #Store IP/Port of all other replicas
+
+    def parseReplicaFile(self):
+
+        file = open("replicas.txt", "r")
+
+        for line in file:
+
+            splitLines = line.split(" ")
+
+            if splitLines[0] == self.replica_num:
+
+                self.hostName = splitLines[1]
+                self.portNum = int(splitLines[2])
+
+                index = int(self.replica_num)
+                self.replicaList[index] = (self.hostName, self.portNum)
+
+            else:
+
+                index = int(splitLines[0])
+                self.replicaList[index] = (splitLines[1], int(splitLines[2]))
+
+        file.close()
 
     def sendMessage(self, client_socket, msg):
 
@@ -39,20 +64,21 @@ class Replica:
 
         self.keyValStore[key] = val;
         print("Added: " + val + " to location: " + str(key))
-    
+
         writeLogInfo = open("writeAhead.txt", "a")
         writeLogInfo.write(str(key) + ":" + val + "\n")
         writeLogInfo.close()
-    
+
     def parseWriteLog(self):
 
         writeLogInfo = open("./writeAhead.txt", "r")
-    
+
         for line in writeLogInfo:
+
             components = line.split(":")
             key = components[0]
             val = components[1][:-1]
-    
+
             self.keyValStore[key] = val
 
         writeLogInfo.close()
@@ -62,7 +88,7 @@ class Replica:
             print ("Error: null message")
             return
         msg_type = msg.WhichOneof("msg")
-    
+
         if msg_type == "put":
             self.put(msg.put.key, msg.put.val, msg.put.level)
         elif msg_type == "get":
@@ -76,21 +102,35 @@ class Replica:
         else:
             print("Unrecognized message type: " + str(msg_type))
 
+    #Wait for coordinator to assign a task
+    def waitForInstruction(self):
+
+        print("Ill just wait here then")
+
+        incomingConnection, incomingAddress = self.socket.accept()
+
+        #print("Got a connection from " + branch.name + ": {" + branch.ip + ", " + str(branch.port) + "}")
+
     def listen_for_message(self, client_socket, client_add):
+
+        print("Im listening")
+
         while True:
+
             msg = client_socket.recv(1024)
+
             if msg:
+
                 store_msg = store.Msg()
                 store_msg.ParseFromString(msg)
                 self.parse_msg(client_socket, client_add, store_msg)
+
     def run(self):
-        self.socket.bind(("", 0))
-            
-        self.hostName = socket.getfqdn()
-        self.portNum = self.socket.getsockname()[1]
+
+        self.socket.bind((self.hostName, self.portNum))
 
         print("Starting Replica " + self.replica_num + ": {" + self.hostName + ":" + str(self.portNum) + "}")
-        
+
         self.socket.listen(10)
 
         #Check for write-log file
@@ -99,9 +139,16 @@ class Replica:
             self.parseWriteLog()
 
         while True:
+
             try:
+
                 client_sock, client_add = self.socket.accept()
+
+                print("Connected to client: {" + client_add[0] + ":" + str(client_add[1]) + "}")
+
                 self.listen_for_message(client_sock, client_add)
+
+
             except KeyboardInterrupt:
                 self.socket.close()
                 break
@@ -116,8 +163,9 @@ def main(args):
 
     replicaSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     replica_server = Replica(replicaNumber, replicaSocket)
+    replica_server.parseReplicaFile()
     replica_server.run()
-    
+
 
 if __name__ == "__main__":
     main(sys.argv)
