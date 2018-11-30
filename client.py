@@ -16,19 +16,31 @@ class Client:
         msg = store_pb2.Msg()
         msg.put.key = 12
         msg.put.val = "mouse"
-        cons = store_pb2.Consistency()
-        cons.level = store_pb2.Consistency.ONE
-        print("consistency level: ", store_pb2.Consistency.ONE)
-        msg.put.level = store_pb2.Consistency.ONE
+        msg.put.level = 0
         print ("here:",  msg)
 
         self.socket.sendall(msg.SerializeToString())
+
+    def send_get_req(self):
+        msg = store_pb2.Msg()
+        msg.get.key = 12
+        msg.get.level = 0
+        print("sending get message")
+        self.socket.sendall(msg.SerializeToString())
+        val = self.socket.recv(1024)
+        if val:
+            s = store_pb2.Msg()
+            s.ParseFromString(val)
+            print ("get value: ", s)
+        
 
         
 
     def run(self):
         self.socket.connect((socket.gethostbyname(socket.gethostname()), int(self.port)))
         self.send_put_msg()
+        time.sleep(1)
+        self.send_get_req()
         
         
 

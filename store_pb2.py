@@ -19,64 +19,10 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='store.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n\x0bstore.proto\"N\n\x0b\x43onsistency\x12!\n\x05level\x18\x01 \x01(\x0e\x32\x12.Consistency.Const\"\x1c\n\x05\x43onst\x12\x07\n\x03ONE\x10\x00\x12\n\n\x06QUORUM\x10\x01\"2\n\x06GetMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x1b\n\x05level\x18\x02 \x01(\x0b\x32\x0c.Consistency\"1\n\x06PutMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x0b\n\x03val\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\r\"\x1a\n\x0bStringValue\x12\x0b\n\x03val\x18\x01 \x01(\t\"\x1a\n\x07Success\x12\x0f\n\x07success\x18\x01 \x01(\x08\" \n\x04Pair\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x0b\n\x03val\x18\x02 \x01(\t\"\x90\x01\n\x03Msg\x12\x16\n\x03put\x18\x01 \x01(\x0b\x32\x07.PutMsgH\x00\x12\x16\n\x03get\x18\x02 \x01(\x0b\x32\x07.GetMsgH\x00\x12\"\n\nstring_val\x18\x03 \x01(\x0b\x32\x0c.StringValueH\x00\x12\x15\n\x04pair\x18\x04 \x01(\x0b\x32\x05.PairH\x00\x12\x17\n\x03suc\x18\x05 \x01(\x0b\x32\x08.SuccessH\x00\x42\x05\n\x03msgb\x06proto3')
+  serialized_pb=_b('\n\x0bstore.proto\"$\n\x06GetMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\r\n\x05level\x18\x02 \x01(\r\"1\n\x06PutMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x0b\n\x03val\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\r\"\x1a\n\x0bStringValue\x12\x0b\n\x03val\x18\x01 \x01(\t\"\x1a\n\x07Success\x12\x0f\n\x07success\x18\x01 \x01(\x08\" \n\x04Pair\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x0b\n\x03val\x18\x02 \x01(\t\"\x90\x01\n\x03Msg\x12\x16\n\x03put\x18\x01 \x01(\x0b\x32\x07.PutMsgH\x00\x12\x16\n\x03get\x18\x02 \x01(\x0b\x32\x07.GetMsgH\x00\x12\"\n\nstring_val\x18\x03 \x01(\x0b\x32\x0c.StringValueH\x00\x12\x15\n\x04pair\x18\x04 \x01(\x0b\x32\x05.PairH\x00\x12\x17\n\x03suc\x18\x05 \x01(\x0b\x32\x08.SuccessH\x00\x42\x05\n\x03msgb\x06proto3')
 )
 
 
-
-_CONSISTENCY_CONST = _descriptor.EnumDescriptor(
-  name='Const',
-  full_name='Consistency.Const',
-  filename=None,
-  file=DESCRIPTOR,
-  values=[
-    _descriptor.EnumValueDescriptor(
-      name='ONE', index=0, number=0,
-      options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='QUORUM', index=1, number=1,
-      options=None,
-      type=None),
-  ],
-  containing_type=None,
-  options=None,
-  serialized_start=65,
-  serialized_end=93,
-)
-_sym_db.RegisterEnumDescriptor(_CONSISTENCY_CONST)
-
-
-_CONSISTENCY = _descriptor.Descriptor(
-  name='Consistency',
-  full_name='Consistency',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='level', full_name='Consistency.level', index=0,
-      number=1, type=14, cpp_type=8, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None, file=DESCRIPTOR),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-    _CONSISTENCY_CONST,
-  ],
-  options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=15,
-  serialized_end=93,
-)
 
 
 _GETMSG = _descriptor.Descriptor(
@@ -95,8 +41,8 @@ _GETMSG = _descriptor.Descriptor(
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='level', full_name='GetMsg.level', index=1,
-      number=2, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
+      number=2, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
@@ -112,8 +58,8 @@ _GETMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=95,
-  serialized_end=145,
+  serialized_start=15,
+  serialized_end=51,
 )
 
 
@@ -157,8 +103,8 @@ _PUTMSG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=147,
-  serialized_end=196,
+  serialized_start=53,
+  serialized_end=102,
 )
 
 
@@ -188,8 +134,8 @@ _STRINGVALUE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=198,
-  serialized_end=224,
+  serialized_start=104,
+  serialized_end=130,
 )
 
 
@@ -219,8 +165,8 @@ _SUCCESS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=226,
-  serialized_end=252,
+  serialized_start=132,
+  serialized_end=158,
 )
 
 
@@ -257,8 +203,8 @@ _PAIR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=254,
-  serialized_end=286,
+  serialized_start=160,
+  serialized_end=192,
 )
 
 
@@ -319,13 +265,10 @@ _MSG = _descriptor.Descriptor(
       name='msg', full_name='Msg.msg',
       index=0, containing_type=None, fields=[]),
   ],
-  serialized_start=289,
-  serialized_end=433,
+  serialized_start=195,
+  serialized_end=339,
 )
 
-_CONSISTENCY.fields_by_name['level'].enum_type = _CONSISTENCY_CONST
-_CONSISTENCY_CONST.containing_type = _CONSISTENCY
-_GETMSG.fields_by_name['level'].message_type = _CONSISTENCY
 _MSG.fields_by_name['put'].message_type = _PUTMSG
 _MSG.fields_by_name['get'].message_type = _GETMSG
 _MSG.fields_by_name['string_val'].message_type = _STRINGVALUE
@@ -346,7 +289,6 @@ _MSG.fields_by_name['pair'].containing_oneof = _MSG.oneofs_by_name['msg']
 _MSG.oneofs_by_name['msg'].fields.append(
   _MSG.fields_by_name['suc'])
 _MSG.fields_by_name['suc'].containing_oneof = _MSG.oneofs_by_name['msg']
-DESCRIPTOR.message_types_by_name['Consistency'] = _CONSISTENCY
 DESCRIPTOR.message_types_by_name['GetMsg'] = _GETMSG
 DESCRIPTOR.message_types_by_name['PutMsg'] = _PUTMSG
 DESCRIPTOR.message_types_by_name['StringValue'] = _STRINGVALUE
@@ -354,13 +296,6 @@ DESCRIPTOR.message_types_by_name['Success'] = _SUCCESS
 DESCRIPTOR.message_types_by_name['Pair'] = _PAIR
 DESCRIPTOR.message_types_by_name['Msg'] = _MSG
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
-
-Consistency = _reflection.GeneratedProtocolMessageType('Consistency', (_message.Message,), dict(
-  DESCRIPTOR = _CONSISTENCY,
-  __module__ = 'store_pb2'
-  # @@protoc_insertion_point(class_scope:Consistency)
-  ))
-_sym_db.RegisterMessage(Consistency)
 
 GetMsg = _reflection.GeneratedProtocolMessageType('GetMsg', (_message.Message,), dict(
   DESCRIPTOR = _GETMSG,

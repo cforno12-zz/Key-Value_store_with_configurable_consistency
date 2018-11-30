@@ -15,28 +15,19 @@ def sendMessage(socket, msg):
         msgLen = len(msgString)
         msgHeader = struct.pack(">I", msgLen)
         socket.sendall(msgHeader + msgString)
+        print("sent message")
     else:
         print("Failed to send")
 
-def readMessage(socket):
-    msgHeader = socket.recv(4)
-    msgLen = struct.unpack(">I", msgHeader)[0]
-    msgString = socket.recv(msgLen)
-    msgTemplate = store.Msg()
-    msgTemplate.ParseFromString(msgString)
 
-    msgType = msgTemplate.WhichOneof("msg")
-    print("recieved message type:", msgType)
-
-    formattedMessage = eval("msgTemplate." + msgType)
-
-    return formattedMessage
-
-def get(key):
+def get(key, level, client_socket):
 
     if key in keyValStore:
-        return keyValStore[key]
-
+        print("key is in map")
+        val_to_send = keyValStore[key]
+        msg_to_send = store.Msg()
+        msg_to_send.string_val.val = val_to_send
+        sendMessage(client_socket, msg_to_send)
     else:
         #return null
         print("No value associated with key: " + key)
@@ -55,7 +46,7 @@ def put(key, val, level):
     
 def parseWriteLog():
 
-    writeLogInfo = open("writeAhead.txt", "r")
+    writeLogInfo = open("./writeAhead.txt", "r")
     
     for line in writeLogInfo:
         components = line.split(":")
@@ -64,9 +55,9 @@ def parseWriteLog():
     
         keyValStore[key] = val
 
-        writeLogInfo.close()
+    writeLogInfo.close()
 
-def parse_msg(client_socket, msg):
+def parse_msg(client_socket, client_add, msg):
     if not msg:
         print ("Error: null message")
         return
@@ -74,8 +65,10 @@ def parse_msg(client_socket, msg):
     
     if msg_type == "put":
         put(msg.put.key, msg.put.val, msg.put.level)
+        print("returned from put function")
     elif msg_type == "get":
-        pass
+        print("recieved get message")
+        get(msg.get.key, msg.get.level, client_socket)
     elif msg_type == "string_val":
         pass
     elif msg_type == "pair":
@@ -85,12 +78,15 @@ def parse_msg(client_socket, msg):
     else:
         print("Unrecognized message type: " + str(msg_type))
 
-def listen_for_message(client_socket):
-    msg = client_socket.recv(1024)
-    if msg:
-        store_msg = store.Msg()
-        store_msg.ParseFromString(msg)
-        parse_msg(client_socket, store_msg)
+def listen_for_message(client_socket, client_add):
+    print("we are listening for message")
+    while True:
+        msg = client_socket.recv(1024)
+        if msg:
+            store_msg = store.Msg()
+            store_msg.ParseFromString(msg)
+            parse_msg(client_socket, client_add, store_msg)
+            print("we finished parsing message")
 
 
 def main(args):
@@ -104,7 +100,7 @@ def main(args):
 
     replicaSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     replicaSocket.bind(("", 0))
-
+    
     hostName = socket.getfqdn()
     portNum = replicaSocket.getsockname()[1]
 
@@ -121,8 +117,9 @@ def main(args):
 
     while True:
         try:
+            print("waiting for connection")
             client_sock, client_add = replicaSocket.accept()
-            listen_for_message(client_sock)
+            listen_for_message(client_sock, client_add)
         except KeyboardInterrupt:
             replicaSocket.close()
             break
