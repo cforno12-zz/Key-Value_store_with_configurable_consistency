@@ -1,9 +1,13 @@
 syntax = "proto3";
 
+message InitCoordinator{
+  uint32 coordinator = 1;
+}
+
 //Get request
 message GetMsg {
   uint32 key = 1;
-  uint32 level = 3;
+  uint32 level = 2;
 }
 
 //Put request
@@ -30,10 +34,11 @@ message Pair {
 
 message Msg {
   oneof msg {
-    PutMsg put = 1;
-    GetMsg get = 2;
-    StringValue string_val = 3;
-    Pair pair = 4;
-    Success suc = 5;
+    InitCoordinator init = 1;
+    PutMsg put = 2;
+    GetMsg get = 3;
+    StringValue string_val = 4;
+    Pair pair = 5;
+    Success suc = 6;
   }
 }

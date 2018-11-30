@@ -32,11 +32,37 @@ class Client:
             s.ParseFromString(val)
             print ("get value: ", s)
 
+    def sendInitialization(self, coordinator):
+
+        #for replica in replicaList:
+        for i in range(2):
+
+            initSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+            try:
+
+                initSocket.connect(replicaList[i])
+
+            except:
+
+                print("Can't connect")
+
+            msg = store_pb2.Msg()
+            msg.init.coordinator = coordinator
+
+            initSocket.sendall(msg.SerializeToString())
+
+
+        initSocket.close()
+
     def run(self):
 
         while True:
 
             coordinator = int(input("Enter replica to contact: "))
+
+            self.sendInitialization(coordinator)
+
             request = input("Enter request (get/put): ")
 
             coordinatorIP = replicaList[coordinator][0]
@@ -68,7 +94,7 @@ class Client:
 
 def parseReplicaFile():
 
-    replicaList = [None] * 5
+    replicaList = [None] * 4
 
     file = open("replicas.txt", "r")
 
