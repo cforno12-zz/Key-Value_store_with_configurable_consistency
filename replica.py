@@ -10,97 +10,95 @@ replicaNumber = -1
 
 def sendMessage(socket, msg):
 
-        if(type(msg) == store.Msg):
-                msgString = msg.SerializeToString()
-                msgLen = len(msgString)
-                msgHeader = struct.pack(">I", msgLen)
-                socket.sendall(msgHeader + msgString)
-        else:
-                print("Failed to send")
-
+    if(type(msg) == store.Msg):
+        msgString = msg.SerializeToString()
+        msgLen = len(msgString)
+        msgHeader = struct.pack(">I", msgLen)
+        socket.sendall(msgHeader + msgString)
+    else:
+        print("Failed to send")
 
 def readMessage(socket):
-	msgHeader = socket.recv(4)
-	msgLen = struct.unpack(">I", msgHeader)[0]
-	msgString = socket.recv(msgLen)
+    msgHeader = socket.recv(4)
+    msgLen = struct.unpack(">I", msgHeader)[0]
+    msgString = socket.recv(msgLen)
+    msgTemplate = store.Msg()
+    msgTemplate.ParseFromString(msgString)
 
-	msgTemplate = store.Msg()
-	msgTemplate.ParseFromString(msgString)
+    msgType = msgTemplate.WhichOneof("msg")
+    print("recieved message type:", msgType)
 
-        msgType = msgTemplate.WhichOneof("msg")
-        print("recieved message type:", msgType)
-	
-	formattedMessage = eval("msgTemplate." + msgType)
+    formattedMessage = eval("msgTemplate." + msgType)
 
-	return formattedMessage
+    return formattedMessage
 
 def get(key):
 
     if key in keyValStore:
-
         return keyValStore[key]
 
     else:
-
         #return null
         print("No value associated with key: " + key)
+
+    return
 
 def put(key, val, level):
 
     keyValStore[key] = val;
     print("Added: " + val + " to location: " + str(key))
-
+    
     writeLogInfo = open("writeAhead.txt", "a")
     writeLogInfo.write(str(key) + ":" + val + "\n")
     writeLogInfo.close()
-
+    return
+    
 def parseWriteLog():
 
     writeLogInfo = open("writeAhead.txt", "r")
-
+    
     for line in writeLogInfo:
-            components = line.split(":")
-            key = components[0]
-            val = components[1][:-1]
-
+        components = line.split(":")
+        key = components[0]
+        val = components[1][:-1]
+    
         keyValStore[key] = val
 
-    writeLogInfo.close()
+        writeLogInfo.close()
 
 def parse_msg(client_socket, msg):
-        if not msg:
-                print ("Error: null message")
-                return
-        msg_type = msg.WhichOneof("msg")
-
-        if msg_type == "put":
-                put(msg.put.key, msg.put.val, msg.put.level)
-        elif msg_type == "get":
-                pass
-        elif msg_type == "string_val":
-                pass
-        elif msg_type == "pair":
-                pass
-        elif msg_type == "suc":
-                pass
-        else:
-                print("Unrecognized message type: " + str(msg_type))
+    if not msg:
+        print ("Error: null message")
+        return
+    msg_type = msg.WhichOneof("msg")
+    
+    if msg_type == "put":
+        put(msg.put.key, msg.put.val, msg.put.level)
+    elif msg_type == "get":
+        pass
+    elif msg_type == "string_val":
+        pass
+    elif msg_type == "pair":
+        pass
+    elif msg_type == "suc":
+        pass
+    else:
+        print("Unrecognized message type: " + str(msg_type))
 
 def listen_for_message(client_socket):
-        msg = client_socket.recv(1024)
-        if msg:
-                store_msg = store.Msg()
-                store_msg.ParseFromString(msg)
-                parse_msg(client_socket, store_msg)
+    msg = client_socket.recv(1024)
+    if msg:
+        store_msg = store.Msg()
+        store_msg.ParseFromString(msg)
+        parse_msg(client_socket, store_msg)
 
 
 def main(args):
-
     global replicaNumber
 
     if len(args) != 2:
-            print("python3 replica.py <replica number>")
-            sys.exit(1)
+        print("python3 replica.py <replica number>")
+        sys.exit(1)
 
     replicaNumber = args[1]
 
@@ -109,6 +107,7 @@ def main(args):
 
     hostName = socket.getfqdn()
     portNum = replicaSocket.getsockname()[1]
+
     print("Starting Replica " + replicaNumber + ": {" + hostName + ":" + str(portNum) + "}")
 
     replicaSocket.listen(10)
@@ -116,31 +115,17 @@ def main(args):
     #Check for write-log file
     writeLog = Path("./writeAhead.txt")
     if(writeLog.exists()):
-            parseWriteLog()
-
-    request = ""
+        parseWriteLog()
+        
+        request = ""
 
     while True:
-            try:
-                    client_sock, client_add = replicaSocket.accept()
-                    listen_for_message(client_sock)
-            except KeyboardInterrupt:
-                    replicaSocket.close()
-                    break
-            
-            
-
-        if(request == "get"):
-
-            get(key)
-
-        elif(request == "put"):
-
-            put(key, val)
+        try:
+            client_sock, client_add = replicaSocket.accept()
+            listen_for_message(client_sock)
+        except KeyboardInterrupt:
+            replicaSocket.close()
             break
 
-    print(keyValStore)
-
-
 if __name__ == "__main__":
-        main(sys.argv)
+    main(sys.argv)
