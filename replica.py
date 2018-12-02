@@ -8,6 +8,7 @@ import time
 
 class Replica:
     def __init__(self, replica_num, server_socket):
+        self.logName = "writeAhead" + replica_num + ".txt"
         self.coordinator = -1            #Determines whether to wait or send
         self.clientSocket = server_socket
         self.replica_num = replica_num
@@ -100,7 +101,7 @@ class Replica:
                     self.keyValStore[key] = val;
                     print("Added: " + val + " to location: " + str(key))
 
-                    writeLogInfo = open("writeAhead.txt", "a")
+                    writeLogInfo = open(self.logName, "a")
                     writeLogInfo.write(str(key) + ":" + val + "\n")
                     writeLogInfo.close()
 
@@ -125,9 +126,13 @@ class Replica:
 
     def parseWriteLog(self):
 
-        writeLogInfo = open("./writeAhead.txt", "r")
+        print(self.logName)
+
+        writeLogInfo = open(self.logName, "r")
 
         emptyCheck = writeLogInfo.read(1)
+        writeLogInfo.close()
+        writeLogInfo = open(self.logName, "r")
         if not emptyCheck:
             writeLogInfo.close()
             return
@@ -174,7 +179,7 @@ class Replica:
             self.keyValStore[key] = val;
             print("Added: " + val + " to location: " + str(key))
 
-            writeLogInfo = open("writeAhead.txt", "a")
+            writeLogInfo = open(self.logName, "a")
             writeLogInfo.write(str(key) + ":" + val + "\n")
             writeLogInfo.close()
 
@@ -306,9 +311,11 @@ class Replica:
         print("--------------Ready To Receive Requests--------------")
 
         #Check for write-log file
-        writeLog = Path("./writeAhead.txt")
+        writeLog = Path("./" + self.logName)
         if(writeLog.exists()):
             self.parseWriteLog()
+
+        print(self.keyValStore)
 
         #Figure out how to reset
         while True:
