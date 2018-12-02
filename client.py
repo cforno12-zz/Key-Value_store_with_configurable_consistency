@@ -57,7 +57,7 @@ class Client:
     def run(self):
 
         while True:
-
+            self.coordinatorSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             coordinator = int(input("Enter replica to contact: "))
 
             self.sendInitialization(coordinator)
@@ -89,7 +89,7 @@ class Client:
 
                 self.send_get_req(key, consistency)
 
-            
+            self.coordinatorSocket.close()
 
 def parseReplicaFile():
 

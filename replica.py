@@ -84,40 +84,44 @@ class Replica:
         print("I will be storing this data on")
         print(str(firstReplica) + " " + str(secondReplica) + " " + str(thirdReplica))
 
-        msg = store.Msg()
-        msg.pair.key = key
-        msg.pair.val = val
+        for i in range(4):
 
-        for currSock in operationReplicas:
-            repSock = self.neighborSockets[currSock]
-            #import pdb; pdb.set_trace();
-            time.sleep(0.5)
-            repSock.sendall(msg.SerializeToString())
+            if(i in operationReplicas):
 
-        '''for rep in operationReplicas:
+                msg = store.Msg()
+                msg.pair.key = key
+                msg.pair.val = val
 
-            index = operationReplicas.index(rep) + 1
+                index = operationReplicas.index(i)
+                if(operationReplicas[index] == int(self.replica_num)):
 
-            if(rep == int(self.replica_num)):
+                    print("I'm one of the desired replicas")
 
-                self.keyValStore[key] = val;
-                print("Added: " + val + " to location: " + str(key))
+                    self.keyValStore[key] = val;
+                    print("Added: " + val + " to location: " + str(key))
 
-                writeLogInfo = open("writeAhead.txt", "a")
-                writeLogInfo.write(str(key) + ":" + val + "\n")
-                writeLogInfo.close()
+                    writeLogInfo = open("writeAhead.txt", "a")
+                    writeLogInfo.write(str(key) + ":" + val + "\n")
+                    writeLogInfo.close()
 
-                continue
+                    continue
 
-            msg = store.Msg()
-            msg.pair.key = key
-            msg.pair.val = val
+                repSock = self.neighborSockets[operationReplicas[index]]
+                #import pdb; pdb.set_trace();
+                time.sleep(0.5)
+                repSock.sendall(msg.SerializeToString())
 
-            repSock = self.neighborSockets[rep]
+            else:
 
-            print(repSock)
+                if(i == int(self.replica_num)):
+                    continue
 
-            repSock.sendall(msg.SerializeToString())'''
+                msg = store.Msg()
+                msg.pair.key = -1
+                msg.pair.val = "None"
+                repSock = self.neighborSockets[i]
+                time.sleep(0.5)
+                repSock.sendall(msg.SerializeToString())
 
     def parseWriteLog(self):
 
@@ -139,21 +143,33 @@ class Replica:
         writeLogInfo.close()
 
     def parse_msg(self, client_socket, client_add, msg):
+
         if not msg:
+
             print ("Error: null message")
-            return
+            return -1
+
         msg_type = msg.WhichOneof("msg")
 
         if msg_type == "put":
+
             self.put(msg.put.key, msg.put.val, msg.put.level)
+
         elif msg_type == "get":
+
             self.get(msg.get.key, msg.get.level, client_socket)
+
         elif msg_type == "string_val":
+
             pass
+
         elif msg_type == "pair":
 
             key = msg.pair.key
             val = msg.pair.val
+
+            if(key == -1):
+                return -1
 
             self.keyValStore[key] = val;
             print("Added: " + val + " to location: " + str(key))
@@ -163,29 +179,35 @@ class Replica:
             writeLogInfo.close()
 
         elif msg_type == "suc":
+
             pass
+
         elif msg_type == "init":
-            print("msg info: " + str(msg.init.coordinator))
             self.coordinator = msg.init.coordinator
+
         else:
+
             print("Unrecognized message type: " + str(msg_type))
 
     #Wait for coordinator to assign a task
     def waitForInstruction(self):
 
+        print("Waiting for coordinator <" + str(self.coordinator) + "> to assign a request")
+
         try:
 
             coordinatorSocket = self.neighborSockets[self.coordinator]
 
-            print("Waiting for coordinator instruction")
-
             msg = coordinatorSocket.recv(1024)
-            print(msg.decode())
 
             store_msg = store.Msg()
             store_msg.ParseFromString(msg)
             msgType = store_msg.WhichOneof("msg")
-            self.parse_msg(coordinatorSocket, ("", ""), store_msg)
+            valid = self.parse_msg(coordinatorSocket, ("", ""), store_msg)
+
+            if(valid == -1):
+
+                return
 
         except KeyboardInterrupt:
             self.clientSocket.close()
@@ -194,6 +216,8 @@ class Replica:
 
     def listen_for_message(self, client_socket, client_add):
 
+        print("Ready to take a request")
+
         msg = client_socket.recv(1024)
 
         if msg:
@@ -201,6 +225,10 @@ class Replica:
             store_msg = store.Msg()
             store_msg.ParseFromString(msg)
             self.parse_msg(client_socket, client_add, store_msg)
+
+        else:
+
+            print("i got nothing")
 
     #Wait for replica to connect
     def listenForReplica(self, replica):
@@ -285,11 +313,12 @@ class Replica:
         #Figure out how to reset
         while True:
 
+            client_socket = None
+            client_add = None
+
             try:
 
                 while(self.coordinator == -1):
-
-                    print("waiting for coordinator")
 
                     client_sock, client_add = self.clientSocket.accept()
 
@@ -303,15 +332,24 @@ class Replica:
                         self.parse_msg(client_sock, client_add, store_msg)
 
 
+                #Replica
                 if(self.replica_num != str(self.coordinator)):
 
                     self.waitForInstruction()
 
+                #coordinator
                 else:
 
                     print("Connected to client as coordinator: {" + client_add[0] + ":" + str(client_add[1]) + "}")
 
-                    self.listen_for_message(client_sock, client_add)
+                    infoMsg = client_sock.recv(1024)
+
+                    if infoMsg:
+
+                        store_msg = store.Msg()
+                        store_msg.ParseFromString(infoMsg)
+                        self.parse_msg(client_sock, client_add, store_msg)
+                        #self.listen_for_message(client_sock, client_add)
 
 
             except KeyboardInterrupt:

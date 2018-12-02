@@ -28,7 +28,7 @@ message Success {
 
 //this is for reading and writing to replicas
 message Pair {
-  uint32 key = 1;
+  int32 key = 1;
   string val = 2;
 }
 
