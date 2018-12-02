@@ -7,16 +7,17 @@ import struct
 import time
 
 class Replica:
-    def __init__(self, replica_num, server_socket):
+    def __init__(self, replica_num, server_socket, mech):
         self.logName = "writeAhead" + replica_num + ".txt"
         self.coordinator = -1            #Determines whether to wait or send
         self.clientSocket = server_socket
         self.replica_num = replica_num
         self.hostName = ""
         self.portNum = 0
-        self.keyValStore = {}
+        self.keyValStore = {} #key => val:time_stamp
         self.replicaList = [None] * 4       #Store IP/Port of all other replicas
         self.neighborSockets = [None] * 4
+        self.const_mech = mech # 0 => read repair -- 1 => hinted handoff
 
     def parseReplicaFile(self):
 
@@ -63,13 +64,22 @@ class Replica:
     def get(self, key, level, client_socket):
 
         if key in self.keyValStore:
-            val_to_send = self.keyValStore[key]
-            msg_to_send = store.Msg()
-            msg_to_send.string_val.val = val_to_send
-
+            val_to_send = self.keyValStore[key].split(":")
+            val_to_send = val_to_send[0]
+            time_stamp = val_to_send[1]
         else:
+            #we contact the next replica in the ring
+            sock_to_contact = self.neighborSockets[(self.replica_num + 1) % 4]
+            msg_to_send = store.Msg()
+            msg_to_send.get.key = key
+            sock_to_contact.sendall(msg_to_send.SerializeToString())
+            val_to_send = sock_to_contact.recv(1024)
             #return null
             print("No value associated with key: " + key)
+
+        msg_to_send = store.Msg()
+        msg_to_send.string_val.val = val_to_send
+        client_socket.sendall(msg_to_send.SerializeToString())
 
     def put(self, key, val, level):
 
@@ -102,7 +112,7 @@ class Replica:
                     print("Added: " + val + " to location: " + str(key))
 
                     writeLogInfo = open(self.logName, "a")
-                    writeLogInfo.write(str(key) + ":" + val + "\n")
+                    writeLogInfo.write(str(key) + ":" + val + ":" + str(time.time()) +"\n")
                     writeLogInfo.close()
 
                     continue
@@ -142,6 +152,7 @@ class Replica:
             components = line.split(":")
             key = int(components[0])
             val = components[1][:-1]
+            
 
             self.keyValStore[key] = val
 
@@ -170,18 +181,7 @@ class Replica:
 
         elif msg_type == "pair":
 
-            key = msg.pair.key
-            val = msg.pair.val
-
-            if(key == -1):
-                return -1
-
-            self.keyValStore[key] = val;
-            print("Added: " + val + " to location: " + str(key))
-
-            writeLogInfo = open(self.logName, "a")
-            writeLogInfo.write(str(key) + ":" + val + "\n")
-            writeLogInfo.close()
+            pass
 
         elif msg_type == "suc":
 
@@ -375,9 +375,14 @@ def main(args):
         sys.exit(1)
 
     replicaNumber = args[1]
+    mech = args[2]
+    if(mech == "repair"):
+        mech = 0
+    elif (mech == "hinted"):
+        mech = 1
 
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    replica_server = Replica(replicaNumber, clientSocket)
+    replica_server = Replica(replicaNumber, clientSocket, mech)
     replica_server.parseReplicaFile()
     replica_server.run()
 

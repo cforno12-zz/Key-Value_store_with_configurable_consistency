@@ -16,9 +16,9 @@ class Client:
         msg.put.key = key
         msg.put.val = val
         msg.put.level = 0
-        print ("here:",  msg)
 
         self.coordinatorSocket.sendall(msg.SerializeToString())
+
 
     def send_get_req(self, key, consistency):
         msg = store_pb2.Msg()
@@ -26,11 +26,11 @@ class Client:
         msg.get.level = consistency
         print("sending get message")
         self.coordinatorSocket.sendall(msg.SerializeToString())
-        val = self.socket.recv(1024)
+        val = self.coordinatorSocket.recv(1024)
         if val:
             s = store_pb2.Msg()
             s.ParseFromString(val)
-            print ("get value: ", s)
+            print ("Key: " + key + " => " +  s.val)
 
     def sendInitialization(self, coordinator):
 
