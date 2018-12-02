@@ -1,2 +1,4 @@
-0 remote07.cs.binghamton.edu 9091
-1 remote07.cs.binghamton.edu 9092
+0 q22-18.class.cs.int 9090
+1 q22-18.class.cs.int 9091
+2 q22-18.class.cs.int 9092
+3 q22-18.class.cs.int 9093

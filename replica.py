@@ -8,12 +8,13 @@ import struct
 class Replica:
     def __init__(self, replica_num, server_socket):
         self.coordinator = -1            #Determines whether to wait or send
-        self.socket = server_socket
+        self.clientSocket = server_socket
         self.replica_num = replica_num
         self.hostName = ""
         self.portNum = 0
         self.keyValStore = {}
         self.replicaList = [None] * 4       #Store IP/Port of all other replicas
+        self.neighborSockets = [None] * 4
 
     def parseReplicaFile(self):
 
@@ -80,13 +81,6 @@ class Replica:
 
     def put(self, key, val, level):
 
-        self.keyValStore[key] = val;
-        print("Added: " + val + " to location: " + str(key))
-
-        writeLogInfo = open("writeAhead.txt", "a")
-        writeLogInfo.write(str(key) + ":" + val + "\n")
-        writeLogInfo.close()
-
         #First replica determined by the byte partitioner
         firstReplica = self.bytePartitioner(key)
 
@@ -94,21 +88,42 @@ class Replica:
         secondReplica = (firstReplica + 1) % 4
         thirdReplica = (firstReplica + 2) % 4
 
+        operationReplicas = [firstReplica, secondReplica, thirdReplica]
+
         print("I will be storing this data on")
         print(str(firstReplica) + " " + str(secondReplica) + " " + str(thirdReplica))
 
-        #Create a socket to send information to the replicas involved
-        replicaSendingSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        for rep in operationReplicas:
 
-        #Just testing with one replica and a fixed port
-        replicaSendingSocket.connect((self.replicaList[firstReplica][0], 10001))
+            index = operationReplicas.index(rep) + 1
 
-        msg = "You are the first replica"
-        replicaSendingSocket.sendall(msg.encode())
+            if(rep == int(self.replica_num)):
+
+                self.keyValStore[key] = val;
+                print("Added: " + val + " to location: " + str(key))
+
+                writeLogInfo = open("writeAhead.txt", "a")
+                writeLogInfo.write(str(key) + ":" + val + "\n")
+                writeLogInfo.close()
+
+                continue
+
+            msg = store.Msg()
+            msg.pair.key = key
+            msg.pair.val = val
+
+            repSock = self.neighborSockets[rep]
+            print("sending ",msg.pair.key, " to ", rep)
+            repSock.sendall(msg.SerializeToString())
 
     def parseWriteLog(self):
 
         writeLogInfo = open("./writeAhead.txt", "r")
+
+        emptyCheck = writeLogInfo.read(1)
+        if not emptyCheck:
+            writeLogInfo.close()
+            return
 
         for line in writeLogInfo:
 
@@ -133,7 +148,17 @@ class Replica:
         elif msg_type == "string_val":
             pass
         elif msg_type == "pair":
-            pass
+
+            key = msg.pair.key
+            val = msg.pair.val
+
+            self.keyValStore[key] = val;
+            print("Added: " + val + " to location: " + str(key))
+
+            writeLogInfo = open("writeAhead.txt", "a")
+            writeLogInfo.write(str(key) + ":" + val + "\n")
+            writeLogInfo.close()
+
         elif msg_type == "suc":
             pass
         elif msg_type == "init":
@@ -145,26 +170,29 @@ class Replica:
     #Wait for coordinator to assign a task
     def waitForInstruction(self):
 
-        print("Ill just wait here then")
+        try:
 
-        #Set up receiving replica socket
-        receivingReplicaSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            coordinatorSocket = self.neighborSockets[self.coordinator]
 
-        #Testing with fixed port
-        receivingReplicaSocket.bind(("", 10001))
+            print("Waiting for coordinator instruction")
 
-        receivingReplicaSocket.listen(1)
+            msg = coordinatorSocket.recv(1024)
+            print(msg.decode())
 
-        client_sock, client_add = receivingReplicaSocket.accept()
+            store_msg = store.Msg()
+            store_msg.ParseFromString(msg)
+            msgType = store_msg.WhichOneof("msg")
+            self.parse_msg(coordinatorSocket, ("", ""), store_msg)
 
-        print("Connected to coordinator as replica: {" + client_add[0] + ":" + str(client_add[1]) + "}")
+        except KeyboardInterrupt:
+            self.clientSocket.close()
+            for sock in neighborSockets:
+                sock.close()
 
-        msg = client_sock.recv(1024)
-        print(msg.decode())
+
+        print(self.keyValStore)
 
     def listen_for_message(self, client_socket, client_add):
-
-        print("Im listening")
 
         msg = client_socket.recv(1024)
 
@@ -174,27 +202,91 @@ class Replica:
             store_msg.ParseFromString(msg)
             self.parse_msg(client_socket, client_add, store_msg)
 
-        #Reset coordinator for next request
-        self.coordinator = -1
+    #Wait for replica to connect
+    def listenForReplica(self, replica):
+
+        index = self.replicaList.index(replica)
+        print("Listening for connection from " + str(index) + "...")
+
+        incomingConn, incomingAddr = self.clientSocket.accept()
+
+        #Store info for later communication
+        self.neighborSockets[index] = incomingConn
+
+        print("Got connection from " + str(index) + ": {" + replica[0] + ", " + str(replica[1]) + "}")
+        print("")
+
+    #Try to connect to given replica
+    def connectToReplica(self, replica):
+
+        while True:
+
+            try:
+
+                newSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                newSocket.connect((replica))
+
+            except socket.error:
+
+                continue
+
+            break
+
+        #Store socket info in list for later communication
+        index = self.replicaList.index(replica)
+        self.neighborSockets[index] = newSocket
+
+        print("Connected to " + str(index) + ": {" + replica[0] + ", " + str(replica[1]) + "}")
+        print("")
+
+    #Create connections among all replicas
+    def initializeNeighboringSockets(self):
+
+        waitForConnection = []
+        connectTo = []
+
+        for i in range(4):
+
+            if i == int(self.replica_num):
+
+                waitForConnection = self.replicaList[:i]
+                connectTo = self.replicaList[i + 1:]
+                break
+
+        for replica in waitForConnection:
+            self.listenForReplica(replica)
+
+        for replica in connectTo:
+            self.connectToReplica(replica)
 
     def run(self):
 
-        self.socket.bind((self.hostName, self.portNum))
+        self.clientSocket.bind((self.hostName, self.portNum))
 
         print("Starting Replica " + self.replica_num + ": {" + self.hostName + ":" + str(self.portNum) + "}")
 
-        self.socket.listen(10)
+        self.neighborSockets[int(self.replica_num)] = self.clientSocket
+
+        self.clientSocket.listen(10)
+
+        print("---------------Connecting All Replicas---------------")
+        print("")
+
+        self.initializeNeighboringSockets()
+
+        print("--------------Ready To Receive Requests--------------")
 
         #Check for write-log file
         writeLog = Path("./writeAhead.txt")
         if(writeLog.exists()):
             self.parseWriteLog()
 
+        #Figure out how to reset
         while True:
 
             try:
 
-                client_sock, client_add = self.socket.accept()
+                client_sock, client_add = self.clientSocket.accept()
 
                 msg = client_sock.recv(1024)
                 if msg:
@@ -206,7 +298,6 @@ class Replica:
 
                     if(self.replica_num != str(self.coordinator)):
 
-                        self.socket.close()
                         self.waitForInstruction()
 
                     else:
@@ -216,8 +307,11 @@ class Replica:
                         self.listen_for_message(client_sock, client_add)
 
 
+
             except KeyboardInterrupt:
-                self.socket.close()
+                for sock in neighborSockets:
+                    sock.close()
+                self.clientSocket.close()
                 break
 
 def main(args):
@@ -228,8 +322,8 @@ def main(args):
 
     replicaNumber = args[1]
 
-    replicaSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    replica_server = Replica(replicaNumber, replicaSocket)
+    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    replica_server = Replica(replicaNumber, clientSocket)
     replica_server.parseReplicaFile()
     replica_server.run()
 

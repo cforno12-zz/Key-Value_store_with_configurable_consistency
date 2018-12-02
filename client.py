@@ -34,14 +34,13 @@ class Client:
 
     def sendInitialization(self, coordinator):
 
-        #for replica in replicaList:
-        for i in range(2):
+        for replica in replicaList:
 
             initSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
             try:
 
-                initSocket.connect(replicaList[i])
+                initSocket.connect((replica))
 
             except:
 
@@ -66,9 +65,7 @@ class Client:
             request = input("Enter request (get/put): ")
 
             coordinatorIP = replicaList[coordinator][0]
-            print(coordinatorIP)
             coordinatorPort = replicaList[coordinator][1]
-            print(coordinatorPort)
 
             self.coordinatorSocket.connect((coordinatorIP, coordinatorPort))
 
