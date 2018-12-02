@@ -89,6 +89,8 @@ class Client:
 
                 self.send_get_req(key, consistency)
 
+            
+
 def parseReplicaFile():
 
     replicaList = [None] * 4

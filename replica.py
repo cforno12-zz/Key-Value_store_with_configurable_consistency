@@ -40,16 +40,6 @@ class Replica:
 
         file.close()
 
-    def sendMessage(self, client_socket, msg):
-
-        if(type(msg) == store.Msg):
-            msgString = msg.SerializeToString()
-            msgLen = len(msgString)
-            msgHeader = struct.pack(">I", msgLen)
-            client_socket.sendall(msgHeader + msgString)
-        else:
-            print("Failed to send")
-
     #Determines the first replica in the cluster
     def bytePartitioner(self, key):
 
@@ -75,7 +65,7 @@ class Replica:
             val_to_send = self.keyValStore[key]
             msg_to_send = store.Msg()
             msg_to_send.string_val.val = val_to_send
-            self.sendMessage(client_socket, msg_to_send)
+
         else:
             #return null
             print("No value associated with key: " + key)
@@ -100,6 +90,7 @@ class Replica:
 
         for currSock in operationReplicas:
             repSock = self.neighborSockets[currSock]
+            #import pdb; pdb.set_trace();
             time.sleep(0.5)
             repSock.sendall(msg.SerializeToString())
 
@@ -140,7 +131,7 @@ class Replica:
         for line in writeLogInfo:
 
             components = line.split(":")
-            key = components[0]
+            key = int(components[0])
             val = components[1][:-1]
 
             self.keyValStore[key] = val
@@ -187,8 +178,6 @@ class Replica:
             coordinatorSocket = self.neighborSockets[self.coordinator]
 
             print("Waiting for coordinator instruction")
-            print(self.coordinator)
-            print(coordinatorSocket)
 
             msg = coordinatorSocket.recv(1024)
             print(msg.decode())
@@ -202,9 +191,6 @@ class Replica:
             self.clientSocket.close()
             for sock in self.neighborSockets:
                 sock.close()
-
-
-        print(self.keyValStore)
 
     def listen_for_message(self, client_socket, client_add):
 
@@ -271,18 +257,18 @@ class Replica:
         for replica in waitForConnection:
             self.listenForReplica(replica)
 
-        for replica in connectTo:
+        for replica in reversed(connectTo):
             self.connectToReplica(replica)
 
     def run(self):
 
-        self.clientSocket.bind((self.hostName, self.portNum))
+        self.clientSocket.bind(('', self.portNum))
 
         print("Starting Replica " + self.replica_num + ": {" + self.hostName + ":" + str(self.portNum) + "}")
 
         self.neighborSockets[int(self.replica_num)] = self.clientSocket
 
-        self.clientSocket.listen(10)
+        self.clientSocket.listen(30)
 
         print("---------------Connecting All Replicas---------------")
         print("")
@@ -301,26 +287,31 @@ class Replica:
 
             try:
 
-                client_sock, client_add = self.clientSocket.accept()
+                while(self.coordinator == -1):
 
-                msg = client_sock.recv(1024)
-                if msg:
+                    print("waiting for coordinator")
 
-                    store_msg = store.Msg()
-                    store_msg.ParseFromString(msg)
-                    msgType = store_msg.WhichOneof("msg")
-                    self.parse_msg(client_sock, client_add, store_msg)
+                    client_sock, client_add = self.clientSocket.accept()
 
-                    if(self.replica_num != str(self.coordinator)):
+                    msg = client_sock.recv(1024)
 
-                        self.waitForInstruction()
+                    if msg:
 
-                    else:
+                        store_msg = store.Msg()
+                        store_msg.ParseFromString(msg)
+                        msgType = store_msg.WhichOneof("msg")
+                        self.parse_msg(client_sock, client_add, store_msg)
 
-                        print("Connected to client as coordinator: {" + client_add[0] + ":" + str(client_add[1]) + "}")
 
-                        self.listen_for_message(client_sock, client_add)
+                if(self.replica_num != str(self.coordinator)):
 
+                    self.waitForInstruction()
+
+                else:
+
+                    print("Connected to client as coordinator: {" + client_add[0] + ":" + str(client_add[1]) + "}")
+
+                    self.listen_for_message(client_sock, client_add)
 
 
             except KeyboardInterrupt:
@@ -328,6 +319,9 @@ class Replica:
                     sock.close()
                 self.clientSocket.close()
                 break
+
+            self.coordinator = -1;
+            client_sock.close()
 
 def main(args):
 
