@@ -4,6 +4,7 @@ import socket
 from pathlib import Path
 import store_pb2 as store
 import struct
+import time
 
 class Replica:
     def __init__(self, replica_num, server_socket):
@@ -93,7 +94,16 @@ class Replica:
         print("I will be storing this data on")
         print(str(firstReplica) + " " + str(secondReplica) + " " + str(thirdReplica))
 
-        for rep in operationReplicas:
+        msg = store.Msg()
+        msg.pair.key = key
+        msg.pair.val = val
+
+        for currSock in operationReplicas:
+            repSock = self.neighborSockets[currSock]
+            time.sleep(0.5)
+            repSock.sendall(msg.SerializeToString())
+
+        '''for rep in operationReplicas:
 
             index = operationReplicas.index(rep) + 1
 
@@ -113,8 +123,10 @@ class Replica:
             msg.pair.val = val
 
             repSock = self.neighborSockets[rep]
-            print("sending ",msg.pair.key, " to ", rep)
-            repSock.sendall(msg.SerializeToString())
+
+            print(repSock)
+
+            repSock.sendall(msg.SerializeToString())'''
 
     def parseWriteLog(self):
 
@@ -175,6 +187,8 @@ class Replica:
             coordinatorSocket = self.neighborSockets[self.coordinator]
 
             print("Waiting for coordinator instruction")
+            print(self.coordinator)
+            print(coordinatorSocket)
 
             msg = coordinatorSocket.recv(1024)
             print(msg.decode())
@@ -186,7 +200,7 @@ class Replica:
 
         except KeyboardInterrupt:
             self.clientSocket.close()
-            for sock in neighborSockets:
+            for sock in self.neighborSockets:
                 sock.close()
 
 
@@ -213,7 +227,7 @@ class Replica:
         #Store info for later communication
         self.neighborSockets[index] = incomingConn
 
-        print("Got connection from " + str(index) + ": {" + replica[0] + ", " + str(replica[1]) + "}")
+        print("Got connection from " + str(index) + ": {" + incomingAddr[0] + ", " + str(incomingAddr[1]) + "}")
         print("")
 
     #Try to connect to given replica
@@ -234,9 +248,10 @@ class Replica:
 
         #Store socket info in list for later communication
         index = self.replicaList.index(replica)
+        print(str(index))
         self.neighborSockets[index] = newSocket
 
-        print("Connected to " + str(index) + ": {" + replica[0] + ", " + str(replica[1]) + "}")
+        print("Connected to " + str(index) + ": {" + newSocket.getsockname()[0] + ", " + str(newSocket.getsockname()[1]) + "}")
         print("")
 
     #Create connections among all replicas
@@ -309,7 +324,7 @@ class Replica:
 
 
             except KeyboardInterrupt:
-                for sock in neighborSockets:
+                for sock in self.neighborSockets:
                     sock.close()
                 self.clientSocket.close()
                 break
