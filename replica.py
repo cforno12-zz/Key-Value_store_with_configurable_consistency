@@ -5,9 +5,23 @@ from pathlib import Path
 import store_pb2 as store
 import struct
 import time
+import threading
+
+'''
+
+    TODO:
+
+        1.) Restructure to utilize threads
+        2.) Handle disconnects and keep track of active replicas
+        3.) Test "get" consistency levels
+        4.) Read-repair
+        5.) Hinted-handoff
+
+'''
 
 class Replica:
     def __init__(self, replica_num, server_socket, mech):
+        self.storeLock = Lock()
         self.logName = "writeAhead" + replica_num + ".txt"
         self.coordinator = -1            #Determines whether to wait or send
         self.clientSocket = server_socket
@@ -81,7 +95,11 @@ class Replica:
         msg_to_send.string_val.val = val_to_send
         client_socket.sendall(msg_to_send.SerializeToString())
 
-    def put(self, key, val, level):
+    #Put a value into the key/val store
+    def put(self, key, val, level, client_socket):
+
+        #Determine how many replicas are needed before returning to client
+        replicasForConsistency = level + 1
 
         #First replica determined by the byte partitioner
         firstReplica = self.bytePartitioner(key)
@@ -95,33 +113,90 @@ class Replica:
         print("I will be storing this data on")
         print(str(firstReplica) + " " + str(secondReplica) + " " + str(thirdReplica))
 
+        #Amount of replicas that have successfully completed the request
+        successfulPuts = 0
+
+        #Loop through all four replcias
         for i in range(4):
 
+            #Send to only those replicas desired by coordinator
             if(i in operationReplicas):
 
+                #Create message to send to replicas
                 msg = store.Msg()
                 msg.pair.key = key
                 msg.pair.val = val
 
                 index = operationReplicas.index(i)
+
+                #This replica is required to store the info
                 if(operationReplicas[index] == int(self.replica_num)):
 
-                    print("I'm one of the desired replicas")
+                    #Write to log before adding to local memory
 
-                    self.keyValStore[key] = val;
-                    print("Added: " + val + " to location: " + str(key))
+                    self.storeLock.acquire()
 
                     writeLogInfo = open(self.logName, "a")
                     writeLogInfo.write(str(key) + ":" + val + ":" + str(time.time()) +"\n")
                     writeLogInfo.close()
 
+                    self.keyValStore[key] = val;
+
+                    self.storeLock.release()
+
+                    #"Put" was successful, return to client if consistency level is met
+                    if key in self.keyValStore:
+
+                        print("Added: " + val + " to location: " + str(key))
+                        successfulPuts += 1
+
+                        #We have reached QUORUM or ONE consistency
+                        if(successfulPuts == replicasForConsistency):
+
+                                msg_to_send = store.Msg()
+                                msg_to_send.suc.success = True
+                                client_socket.sendall(msg_to_send.SerializeToString())
+
                     continue
 
+                #Find socket connecting to other replica
                 repSock = self.neighborSockets[operationReplicas[index]]
-                #import pdb; pdb.set_trace();
-                time.sleep(0.5)
+
+                #Sleep to see effect of consistency level
+                time.sleep(2)
+
+                #Send message containing key and val to replica
                 repSock.sendall(msg.SerializeToString())
 
+                #Receive response
+                msg = repSock.recv(1024)
+
+                store_msg = store.Msg()
+                store_msg.ParseFromString(msg)
+                msgType = store_msg.WhichOneof("msg")
+                valid = self.parse_msg(repSock, ("", ""), store_msg)
+
+                #The put in a replica was successful
+                if(valid):
+
+                    print("Successful copy to " + operationReplicas[index])
+
+                    successfulPuts += 1
+
+                    #We have enough for the consistency, send success to client
+                    if(successfulPuts == replicasForConsistency):
+
+                            msg_to_send = store.Msg()
+                            msg_to_send.suc.success = True
+                            client_socket.sendall(msg_to_send.SerializeToString())
+
+                    continue
+
+                else:
+
+                    print("Failed copy to " + operationReplicas[index])
+
+            #Message to get unused replcias out of the wait function
             else:
 
                 if(i == int(self.replica_num)):
@@ -134,42 +209,55 @@ class Replica:
                 time.sleep(0.5)
                 repSock.sendall(msg.SerializeToString())
 
+
+        #Send failure to client
+        if(successfulPuts < replicasForConsistency):
+
+            print("Didn't get to consistency level")
+
+            msg_to_send = store.Msg()
+            msg_to_send.suc.success = False
+            client_socket.sendall(msg_to_send.SerializeToString())
+
+    #Parse write-ahead log at beginning of execution
     def parseWriteLog(self):
 
-        print(self.logName)
-
         writeLogInfo = open(self.logName, "r")
 
+
+        #If file is empty, return
         emptyCheck = writeLogInfo.read(1)
         writeLogInfo.close()
-        writeLogInfo = open(self.logName, "r")
+
         if not emptyCheck:
             writeLogInfo.close()
             return
 
+        writeLogInfo = open(self.logName, "r")
         for line in writeLogInfo:
 
             components = line.split(":")
             key = int(components[0])
             val = components[1][:-1]
-            
+
 
             self.keyValStore[key] = val
 
         writeLogInfo.close()
 
+    #Function to parse all protobuf messages
     def parse_msg(self, client_socket, client_add, msg):
 
         if not msg:
 
             print ("Error: null message")
-            return -1
+            return False
 
         msg_type = msg.WhichOneof("msg")
 
         if msg_type == "put":
 
-            self.put(msg.put.key, msg.put.val, msg.put.level)
+            self.put(msg.put.key, msg.put.val, msg.put.level, client_socket)
 
         elif msg_type == "get":
 
@@ -179,14 +267,42 @@ class Replica:
 
             pass
 
+
+        #Used to communicate between replicas
         elif msg_type == "pair":
 
-            pass
+            key = msg.pair.key
+            val = msg.pair.val
 
+            if(key == -1):
+                return False
+
+            self.storeLock.acquire()
+
+            writeLogInfo = open("writeAhead.txt", "a")
+            writeLogInfo = open(self.logName, "a")
+            writeLogInfo.write(str(key) + ":" + val + "\n")
+            writeLogInfo.close()
+
+            self.keyValStore[key] = val;
+
+            self.storeLock.release()
+
+            if key in self.keyValStore:
+                print("Added: " + val + " to location: " + str(key))
+                return True
+
+            else:
+
+                return False
+
+        #Used to determine if an operation was successful or not
         elif msg_type == "suc":
 
-            pass
+            outcome = msg.suc.success
+            return outcome
 
+        #Initializes the coordinator for a request
         elif msg_type == "init":
             self.coordinator = msg.init.coordinator
 
@@ -210,30 +326,20 @@ class Replica:
             msgType = store_msg.WhichOneof("msg")
             valid = self.parse_msg(coordinatorSocket, ("", ""), store_msg)
 
-            if(valid == -1):
+            if(not valid):
 
                 return
+
+            else:
+
+                msg = store.Msg()
+                msg.suc.success = True
+                coordinatorSocket.sendall(msg.SerializeToString())
 
         except KeyboardInterrupt:
             self.clientSocket.close()
             for sock in self.neighborSockets:
                 sock.close()
-
-    def listen_for_message(self, client_socket, client_add):
-
-        print("Ready to take a request")
-
-        msg = client_socket.recv(1024)
-
-        if msg:
-
-            store_msg = store.Msg()
-            store_msg.ParseFromString(msg)
-            self.parse_msg(client_socket, client_add, store_msg)
-
-        else:
-
-            print("i got nothing")
 
     #Wait for replica to connect
     def listenForReplica(self, replica):
@@ -315,9 +421,6 @@ class Replica:
         if(writeLog.exists()):
             self.parseWriteLog()
 
-        print(self.keyValStore)
-
-        #Figure out how to reset
         while True:
 
             client_socket = None
@@ -342,7 +445,11 @@ class Replica:
                 #Replica
                 if(self.replica_num != str(self.coordinator)):
 
-                    self.waitForInstruction()
+                    replicaThread = threading.Thread(target=self.waitForInstruction)
+
+                    replciaThread.daemon = True
+
+                    replicaThread.start()
 
                 #coordinator
                 else:
@@ -355,8 +462,12 @@ class Replica:
 
                         store_msg = store.Msg()
                         store_msg.ParseFromString(infoMsg)
-                        self.parse_msg(client_sock, client_add, store_msg)
-                        #self.listen_for_message(client_sock, client_add)
+
+                        coordinatorThread = threading.Thread(target=self.parse_msg, args=(client_sock,client_add,store_msg)
+
+                        coordinatorThread.daemon = True
+
+                        coordinatorThread.start()
 
 
             except KeyboardInterrupt:
@@ -370,7 +481,7 @@ class Replica:
 
 def main(args):
 
-    if len(args) != 2:
+    if len(args) != 3:
         print("python3 replica.py <replica number>")
         sys.exit(1)
 

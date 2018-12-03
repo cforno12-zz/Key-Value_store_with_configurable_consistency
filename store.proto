@@ -23,7 +23,7 @@ message StringValue {
 }
 
 message Success {
-  bool success = 1;
+  bool success = 2;
 }
 
 //this is for reading and writing to replicas

@@ -11,14 +11,23 @@ class Client:
         self.replicaList = replicaList      #Store IP/Port of all replicas
         self.coordinatorSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    def send_put_msg(self, key, val):
+    def send_put_msg(self, key, val, consistency):
         msg = store_pb2.Msg()
         msg.put.key = key
         msg.put.val = val
-        msg.put.level = 0
+        msg.put.level = consistency
 
         self.coordinatorSocket.sendall(msg.SerializeToString())
 
+        val = self.coordinatorSocket.recv(1024)
+
+        if val:
+
+            s = store_pb2.Msg()
+            s.ParseFromString(val)
+            if(s.suc.success):
+
+                print("Write operation completed successfully")
 
     def send_get_req(self, key, consistency):
         msg = store_pb2.Msg()
@@ -74,7 +83,15 @@ class Client:
                 key = int(input("Key: "))
                 val = input("Val: ")
 
-                self.send_put_msg(key, val)
+                cL = input("Consistency Level: ")
+
+                consistency = -1
+                if(cL == "ONE"):
+                    consistency = 0
+                if(cL == "QUORUM"):
+                    consistency = 1
+
+                self.send_put_msg(key, val, consistency)
 
             if(request == "get"):
 
