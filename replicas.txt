@@ -1,4 +1,4 @@
-0 remote07.cs.binghamton.edu 10025
-1 remote06.cs.binghamton.edu 10026
-2 remote03.cs.binghamton.edu 10027
-3 remote01.cs.binghamton.edu 10028
+0 q22-22.class.cs.int 10074
+1 q22-22.class.cs.int 10075
+2 q22-22.class.cs.int 10076
+3 q22-22.class.cs.int 10077

@@ -29,6 +29,10 @@ class Client:
 
                 print("Write operation completed successfully")
 
+            else:
+
+                print("Failed to write to replicas desired")
+
     def send_get_req(self, key, consistency):
         msg = store_pb2.Msg()
         msg.get.key = key

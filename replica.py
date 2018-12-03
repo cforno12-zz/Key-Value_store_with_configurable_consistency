@@ -21,7 +21,7 @@ import threading
 
 class Replica:
     def __init__(self, replica_num, server_socket, mech):
-        self.storeLock = Lock()
+        self.storeLock = threading.Lock()
         self.logName = "writeAhead" + replica_num + ".txt"
         self.coordinator = -1            #Determines whether to wait or send
         self.clientSocket = server_socket
@@ -166,10 +166,51 @@ class Replica:
                 time.sleep(2)
 
                 #Send message containing key and val to replica
-                repSock.sendall(msg.SerializeToString())
+                try:
+
+                    repSock.sendall(msg.SerializeToString())
+
+                except socket.error:
+
+                    self.neighborSockets[operationReplicas[index]].close()
+
+                    connected = False
+
+                    while not connected:
+
+                            try:
+
+                                self.neighborSockets[operationReplicas[index]].connect(self.replicaList[index])
+                                connected = True
+
+                            except socket.error:
+
+                                time.sleep(.5)
 
                 #Receive response
-                msg = repSock.recv(1024)
+                try:
+
+                    msg = repSock.recv(1024)
+
+                except socket.error:
+
+                    print("I got here")
+
+                    self.neighborSockets[i].close()
+
+                    connected = False
+
+                    while not connected:
+
+                            try:
+
+                                self.neighborSockets[operationReplicas[index]].connect(self.replicaList[index])
+                                connected = True
+
+                            except socket.error:
+
+                                time.sleep(.5)
+
 
                 store_msg = store.Msg()
                 store_msg.ParseFromString(msg)
@@ -179,7 +220,7 @@ class Replica:
                 #The put in a replica was successful
                 if(valid):
 
-                    print("Successful copy to " + operationReplicas[index])
+                    print("Successful copy to " + str(operationReplicas[index]))
 
                     successfulPuts += 1
 
@@ -194,7 +235,26 @@ class Replica:
 
                 else:
 
-                    print("Failed copy to " + operationReplicas[index])
+                    print("Failed copy to " + str(operationReplicas[index]))
+
+                    #Append hint to list for replica that failed
+                    #self.storedHints[i].append((key, val))
+
+                    self.neighborSockets[i].close()
+
+                    connected = False
+
+                    while not connected:
+
+                            try:
+
+                                self.clientSocket.connect(self.replicaList[i])
+                                connected = True
+
+                            except socket.error:
+
+                                time.sleep(.5)
+
 
             #Message to get unused replcias out of the wait function
             else:
@@ -336,10 +396,20 @@ class Replica:
                 msg.suc.success = True
                 coordinatorSocket.sendall(msg.SerializeToString())
 
-        except KeyboardInterrupt:
-            self.clientSocket.close()
+        except KeyboardInterrupt
+
+            if self.clientSocket:
+
+                self.clientSocket.close()
+                self.clientSocket = None
+
             for sock in self.neighborSockets:
-                sock.close()
+
+                if sock:
+                    sock.close()
+                    sock = None
+
+            sys.exit()
 
     #Wait for replica to connect
     def listenForReplica(self, replica):
@@ -423,33 +493,44 @@ class Replica:
 
         while True:
 
-            client_socket = None
+            client_sock = None
             client_add = None
 
             try:
 
                 while(self.coordinator == -1):
 
-                    client_sock, client_add = self.clientSocket.accept()
+                    try:
 
-                    msg = client_sock.recv(1024)
+                        client_sock, client_add = self.clientSocket.accept()
 
-                    if msg:
+                        msg = client_sock.recv(1024)
 
-                        store_msg = store.Msg()
-                        store_msg.ParseFromString(msg)
-                        msgType = store_msg.WhichOneof("msg")
-                        self.parse_msg(client_sock, client_add, store_msg)
+                        if msg:
+
+                            store_msg = store.Msg()
+                            store_msg.ParseFromString(msg)
+                            msgType = store_msg.WhichOneof("msg")
+                            self.parse_msg(client_sock, client_add, store_msg)
+
+                    except KeyboardInterrupt or AttributeError:
+
+                        if self.clientSocket:
+                            self.clientSocket.close()
+
+                        for sock in self.neighborSockets:
+
+                            if sock:
+
+                                sock.close()
+
+                        break
 
 
                 #Replica
                 if(self.replica_num != str(self.coordinator)):
 
-                    replicaThread = threading.Thread(target=self.waitForInstruction)
-
-                    replciaThread.daemon = True
-
-                    replicaThread.start()
+                    self.waitForInstruction()
 
                 #coordinator
                 else:
@@ -463,17 +544,18 @@ class Replica:
                         store_msg = store.Msg()
                         store_msg.ParseFromString(infoMsg)
 
-                        coordinatorThread = threading.Thread(target=self.parse_msg, args=(client_sock,client_add,store_msg)
-
-                        coordinatorThread.daemon = True
-
-                        coordinatorThread.start()
-
+                        self.parse_msg(client_sock,client_add,store_msg)
 
             except KeyboardInterrupt:
+
                 for sock in self.neighborSockets:
-                    sock.close()
-                self.clientSocket.close()
+
+                    if sock:
+                        sock.close()
+
+                if self.clientSocket:
+                    self.clientSocket.close()
+
                 break
 
             self.coordinator = -1;
