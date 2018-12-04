@@ -1,4 +1,4 @@
-0 q22-22.class.cs.int 10074
-1 q22-22.class.cs.int 10075
-2 q22-22.class.cs.int 10076
-3 q22-22.class.cs.int 10077
+0 remote05.cs.binghamton.edu 10021
+1 remote05.cs.binghamton.edu 10022
+2 remote05.cs.binghamton.edu 10023
+3 remote05.cs.binghamton.edu 10024

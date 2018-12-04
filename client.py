@@ -43,7 +43,9 @@ class Client:
         if val:
             s = store_pb2.Msg()
             s.ParseFromString(val)
-            print ("Key: " + key + " => " +  s.val)
+            value = s.string_val.val
+            index = value.find("M") + 1
+            print ("Key: " + str(key) + " => " +  value[index:])
 
     def sendInitialization(self, coordinator):
 
