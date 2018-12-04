@@ -6,6 +6,7 @@ import store_pb2 as store
 import struct
 import time
 import threading
+import _thread as thread
 
 '''
 
@@ -18,6 +19,8 @@ import threading
         5.) Hinted-handoff
 
 '''
+
+
 
 class Replica:
     def __init__(self, replica_num, server_socket, mech):
@@ -32,6 +35,7 @@ class Replica:
         self.replicaList = [None] * 4       #Store IP/Port of all other replicas
         self.neighborSockets = [None] * 4
         self.const_mech = mech # 0 => read repair -- 1 => hinted handoff
+        self.OKs = []
 
     def parseReplicaFile(self):
 
@@ -75,21 +79,80 @@ class Replica:
 
         return firstRep
 
+    def get_consistency_helper(self, key, socket, contact):
+        msg = store.Msg()
+        msg.pair_read.key = key
+        msg.pair_read.val = self.keyValStore[key].split(":")[0]
+        
+        print("using " + str(contact) + "to send message")
+        socket.sendall(msg.SerializeToString())
+
+        response = socket.recv(1024)
+
+        print("we have recieved the successful message")
+
+        msg = store.Msg()
+        if response:
+            print ("we didn't recieve a null message")
+            msg.ParseFromString(response)
+            print(msg)
+            if msg.WhichOneof("msg") == "succ":
+                if msg.suc.success == "true":
+                    print("Recieved SUCCESS from replica " + contact)
+                    self.OKs.append(True)
+                else:
+                    pass
+                
+                    # do the consistency mechanism
+                    # only one of the threads should do this
+        thread.exit()
+
+    def get_consistency(self, key, level):
+        if level == 0:
+            OK_len = 1
+        elif level == 1:
+            OK_len = 2
+
+        self.OKs = []
+        begins = self.bytePartitioner(key)
+        #contact all three
+        for i in range(3):
+            contact = (int(begins) + i) % 4
+            if int(contact) == int(self.replica_num):
+                continue
+            sock = self.neighborSockets[contact]
+            thread.start_new_thread(self.get_consistency_helper, (int(key), sock, contact))
+
+        counter = 0 # use this as a time out mechanism
+        while len(self.OKs) < OK_len and counter < 5: # we only need one OK from the replicas
+            print("number of OKs: " + str(len(self.OKs)))
+            time.sleep(0.5)
+            counter += 1
+
+        if len(self.OKs) < OK_len:
+            pass
+            # what do we do when none of them OK?
+            # do we call the consistency mechanism?
+            # then we call this function again?
+
     def get(self, key, level, client_socket):
 
         if key in self.keyValStore:
             val_to_send = self.keyValStore[key].split(":")
             val_to_send = val_to_send[0]
+            print("this is the value we are sending: " + val_to_send)
             time_stamp = val_to_send[1]
+
+            self.get_consistency(key, level)
         else:
             #we contact the next replica in the ring
-            sock_to_contact = self.neighborSockets[(self.replica_num + 1) % 4]
+            sock_to_contact = self.neighborSockets[(int(self.replica_num) + 1) % 4]
             msg_to_send = store.Msg()
             msg_to_send.get.key = key
+            msg_to_send.get.level = level
+            print("key is not in this node, asking next node...")
             sock_to_contact.sendall(msg_to_send.SerializeToString())
             val_to_send = sock_to_contact.recv(1024)
-            #return null
-            print("No value associated with key: " + key)
 
         msg_to_send = store.Msg()
         msg_to_send.string_val.val = val_to_send
@@ -97,6 +160,7 @@ class Replica:
 
     #Put a value into the key/val store
     def put(self, key, val, level, client_socket):
+
 
         #Determine how many replicas are needed before returning to client
         replicasForConsistency = level + 1
@@ -124,8 +188,8 @@ class Replica:
 
                 #Create message to send to replicas
                 msg = store.Msg()
-                msg.pair.key = key
-                msg.pair.val = val
+                msg.pair_write.key = key
+                msg.pair_write.val = val
 
                 index = operationReplicas.index(i)
 
@@ -161,6 +225,8 @@ class Replica:
 
                 #Find socket connecting to other replica
                 repSock = self.neighborSockets[operationReplicas[index]]
+                time.sleep(0.5)
+                repSock.sendall(msg.SerializeToString())
 
                 #Sleep to see effect of consistency level
                 time.sleep(2)
@@ -263,12 +329,27 @@ class Replica:
                     continue
 
                 msg = store.Msg()
-                msg.pair.key = -1
-                msg.pair.val = "None"
+                msg.pair_write.key = -1
+                msg.pair_write.val = "None"
                 repSock = self.neighborSockets[i]
                 time.sleep(0.5)
                 repSock.sendall(msg.SerializeToString())
 
+    def compare_pair(self, key, val, sock):
+        msg = store.Msg()
+        if key in self.keyValStore:
+            if self.keyValStore[key] == val:
+                msg.suc.success = True
+            else:
+                msg.suc.success = False
+        else:
+            msg.suc.success = False
+        print("we are about to send back a successful message")
+
+        sock.sendall(msg.SerializeToString())
+        print("we sent back a  successful message")
+
+    def parseWriteLog(self):
 
         #Send failure to client
         if(successfulPuts < replicasForConsistency):
@@ -284,9 +365,7 @@ class Replica:
 
         writeLogInfo = open(self.logName, "r")
 
-
-        #If file is empty, return
-        emptyCheck = writeLogInfo.read(1)
+        emptyCheck = writeLogInfo.read(1).strip()
         writeLogInfo.close()
 
         if not emptyCheck:
@@ -296,11 +375,9 @@ class Replica:
         writeLogInfo = open(self.logName, "r")
         for line in writeLogInfo:
 
-            components = line.split(":")
+            components = line.strip().split(":")
             key = int(components[0])
-            val = components[1][:-1]
-
-
+            val = components[1]
             self.keyValStore[key] = val
 
         writeLogInfo.close()
@@ -323,16 +400,11 @@ class Replica:
 
             self.get(msg.get.key, msg.get.level, client_socket)
 
-        elif msg_type == "string_val":
-
-            pass
-
-
         #Used to communicate between replicas
-        elif msg_type == "pair":
+        elif msg_type == "pair_write":
 
-            key = msg.pair.key
-            val = msg.pair.val
+            key = msg.pair_write.key
+            val = msg.pair_write.val
 
             if(key == -1):
                 return False
@@ -361,11 +433,14 @@ class Replica:
 
             outcome = msg.suc.success
             return outcome
-
         #Initializes the coordinator for a request
         elif msg_type == "init":
             self.coordinator = msg.init.coordinator
 
+        elif msg_type == "pair_read":
+            print("we got a pair_read msg")
+            self.compare_pair(msg.pair_read.key, msg.pair_read.val, client_socket)
+            # use the function i created --cris
         else:
 
             print("Unrecognized message type: " + str(msg_type))
@@ -396,7 +471,7 @@ class Replica:
                 msg.suc.success = True
                 coordinatorSocket.sendall(msg.SerializeToString())
 
-        except KeyboardInterrupt
+        except KeyboardInterrupt or OSError:
 
             if self.clientSocket:
 
@@ -564,7 +639,7 @@ class Replica:
 def main(args):
 
     if len(args) != 3:
-        print("python3 replica.py <replica number>")
+        print("python3 replpica.py <replica number> <consistency mechanism>")
         sys.exit(1)
 
     replicaNumber = args[1]

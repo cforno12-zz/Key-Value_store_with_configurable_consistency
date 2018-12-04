@@ -27,7 +27,12 @@ message Success {
 }
 
 //this is for reading and writing to replicas
-message Pair {
+message PairRead {
+  int32 key = 1;
+  string val = 2;
+}
+
+message PairWrite {
   int32 key = 1;
   string val = 2;
 }
@@ -38,7 +43,8 @@ message Msg {
     PutMsg put = 2;
     GetMsg get = 3;
     StringValue string_val = 4;
-    Pair pair = 5;
-    Success suc = 6;
+    PairRead pair_read = 5;
+    PairWrite pair_write = 6;
+    Success suc = 7;
   }
 }
