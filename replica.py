@@ -26,16 +26,18 @@ class Replica:
     def __init__(self, replica_num, server_socket, mech):
         self.storeLock = threading.Lock()
         self.logName = "writeAhead" + replica_num + ".txt"
-        self.coordinator = -1            #Determines whether to wait or send
+        self.coordinator = -1                   #Determines whether to wait or send
         self.clientSocket = server_socket
         self.replica_num = replica_num
         self.hostName = ""
         self.portNum = 0
-        self.keyValStore = {} #key => val:time_stamp
-        self.replicaList = [None] * 4       #Store IP/Port of all other replicas
+        self.keyValStore = {}                   #key => val:time_stamp
+        self.replicaList = [None] * 4           #Store IP/Port of all other replicas
         self.neighborSockets = [None] * 4
-        self.const_mech = mech # 0 => read repair -- 1 => hinted handoff
+        self.const_mech = mech                  # 0 => read repair -- 1 => hinted handoff
         self.OKs = []
+        self.successfulPuts = 0
+        self.hints = [[], [], [], []]           #2d Array of hints
 
     def parseReplicaFile(self):
 
@@ -83,7 +85,7 @@ class Replica:
         msg = store.Msg()
         msg.pair_read.key = key
         msg.pair_read.val = self.keyValStore[key].split(":")[0]
-        
+
         print("using " + str(contact) + "to send message")
         socket.sendall(msg.SerializeToString())
 
@@ -102,7 +104,7 @@ class Replica:
                     self.OKs.append(True)
                 else:
                     pass
-                
+
                     # do the consistency mechanism
                     # only one of the threads should do this
         thread.exit()
@@ -160,7 +162,6 @@ class Replica:
 
     #Put a value into the key/val store
     def put(self, key, val, level, client_socket):
-
 
         #Determine how many replicas are needed before returning to client
         replicasForConsistency = level + 1
@@ -226,10 +227,6 @@ class Replica:
                 #Find socket connecting to other replica
                 repSock = self.neighborSockets[operationReplicas[index]]
                 time.sleep(0.5)
-                repSock.sendall(msg.SerializeToString())
-
-                #Sleep to see effect of consistency level
-                time.sleep(2)
 
                 #Send message containing key and val to replica
                 try:
@@ -238,20 +235,21 @@ class Replica:
 
                 except socket.error:
 
-                    self.neighborSockets[operationReplicas[index]].close()
+                    self.neighborSockets[i].close()
+                    print("Failed to connect to " + str(i))
 
-                    connected = False
+                    if(self.const_mech == 1):
+                        print("Storing <" + str(key) + val + "> as a hint")
 
-                    while not connected:
+                        self.hints[i].append((key, val))
 
-                            try:
+                        print(self.hints)
 
-                                self.neighborSockets[operationReplicas[index]].connect(self.replicaList[index])
-                                connected = True
+                    continue
 
-                            except socket.error:
 
-                                time.sleep(.5)
+                #Sleep to see effect of consistency level
+                time.sleep(2)
 
                 #Receive response
                 try:
@@ -260,23 +258,16 @@ class Replica:
 
                 except socket.error:
 
-                    print("I got here")
-
                     self.neighborSockets[i].close()
+                    print("Failed to connect to " + str(i))
+                    if(self.const_mech == 1):
+                        print("Storing <" + str(key) + val + "> as a hint")
 
-                    connected = False
+                        self.hints[i].append((key, val))
 
-                    while not connected:
+                        print(self.hints)
 
-                            try:
-
-                                self.neighborSockets[operationReplicas[index]].connect(self.replicaList[index])
-                                connected = True
-
-                            except socket.error:
-
-                                time.sleep(.5)
-
+                    continue
 
                 store_msg = store.Msg()
                 store_msg.ParseFromString(msg)
@@ -304,23 +295,16 @@ class Replica:
                     print("Failed copy to " + str(operationReplicas[index]))
 
                     #Append hint to list for replica that failed
-                    #self.storedHints[i].append((key, val))
-
                     self.neighborSockets[i].close()
+                    print("Failed to connect to " + str(i))
+                    if(self.const_mech == 1):
+                        print("Storing <" + str(key) + val + "> as a hint")
 
-                    connected = False
+                        self.hints[i].append((key, val))
 
-                    while not connected:
+                        print(self.hints)
 
-                            try:
-
-                                self.clientSocket.connect(self.replicaList[i])
-                                connected = True
-
-                            except socket.error:
-
-                                time.sleep(.5)
-
+                    continue
 
             #Message to get unused replcias out of the wait function
             else:
@@ -335,6 +319,15 @@ class Replica:
                 time.sleep(0.5)
                 repSock.sendall(msg.SerializeToString())
 
+        #Send failure to client
+        if(successfulPuts < replicasForConsistency):
+
+            print("Didn't get to consistency level")
+
+            msg_to_send = store.Msg()
+            msg_to_send.suc.success = False
+            client_socket.sendall(msg_to_send.SerializeToString())
+
     def compare_pair(self, key, val, sock):
         msg = store.Msg()
         if key in self.keyValStore:
@@ -348,17 +341,6 @@ class Replica:
 
         sock.sendall(msg.SerializeToString())
         print("we sent back a  successful message")
-
-    def parseWriteLog(self):
-
-        #Send failure to client
-        if(successfulPuts < replicasForConsistency):
-
-            print("Didn't get to consistency level")
-
-            msg_to_send = store.Msg()
-            msg_to_send.suc.success = False
-            client_socket.sendall(msg_to_send.SerializeToString())
 
     #Parse write-ahead log at beginning of execution
     def parseWriteLog(self):
@@ -381,6 +363,19 @@ class Replica:
             self.keyValStore[key] = val
 
         writeLogInfo.close()
+
+    #Adds hints to coordinators keyValStore
+    def appendHints(self, hKeys, hVals):
+
+        for i in range(len(hKeys)):
+
+            writeLogInfo = open(self.logName, "a")
+            writeLogInfo.write(str(hKeys[i]) + ":" + hVals[i] + ":" + str(time.time()) +"\n")
+            writeLogInfo.close()
+
+            self.keyValStore[hKeys[i]] = hVals[i]
+
+            print("Added <" + str(hKeys[i]) + " " + hVals[i] + ">")
 
     #Function to parse all protobuf messages
     def parse_msg(self, client_socket, client_add, msg):
@@ -407,11 +402,11 @@ class Replica:
             val = msg.pair_write.val
 
             if(key == -1):
+
                 return False
 
             self.storeLock.acquire()
 
-            writeLogInfo = open("writeAhead.txt", "a")
             writeLogInfo = open(self.logName, "a")
             writeLogInfo.write(str(key) + ":" + val + "\n")
             writeLogInfo.close()
@@ -421,6 +416,7 @@ class Replica:
             self.storeLock.release()
 
             if key in self.keyValStore:
+
                 print("Added: " + val + " to location: " + str(key))
                 return True
 
@@ -433,6 +429,7 @@ class Replica:
 
             outcome = msg.suc.success
             return outcome
+
         #Initializes the coordinator for a request
         elif msg_type == "init":
             self.coordinator = msg.init.coordinator
@@ -441,14 +438,72 @@ class Replica:
             print("we got a pair_read msg")
             self.compare_pair(msg.pair_read.key, msg.pair_read.val, client_socket)
             # use the function i created --cris
+
+        elif msg_type == "hint":
+
+                hKeys = []
+                hVals = []
+
+                hKeys.extend(msg.hint.hintKey)
+                hVals.extend(msg.hint.hintValue)
+
+                if(hKeys[0] == -1):
+
+                    return False
+
+                self.appendHints(hKeys, hVals)
+
+                return True
+
         else:
 
             print("Unrecognized message type: " + str(msg_type))
+
+    def performHintedHandoff(self):
+
+        if(len(self.hints[self.coordinator]) > 0):
+
+            print("I have hints for the coordinator")
+            msg = store.Msg()
+
+            k = []
+            v = []
+            for i in range(len(self.hints[self.coordinator])):
+
+                k.append(self.hints[self.coordinator][i][0])
+                v.append(self.hints[self.coordinator][i][1])
+
+            msg.hint.hintKey.extend(k)
+            msg.hint.hintValue.extend(v)
+
+            self.neighborSockets[self.coordinator].sendall(msg.SerializeToString())
+
+            print(self.hints[self.coordinator])
+            self.hints[self.coordinator].clear()
+            print(self.hints)
+
+        else:
+
+            msg = store.Msg()
+            print("No hints for the coordinator")
+            noHint = []
+            noHint.append(-1)
+            noVal = []
+            noVal.append("-")
+            msg.hint.hintKey.extend(noHint)
+            msg.hint.hintValue.extend(noVal)
+
+            self.neighborSockets[self.coordinator].sendall(msg.SerializeToString())
 
     #Wait for coordinator to assign a task
     def waitForInstruction(self):
 
         print("Waiting for coordinator <" + str(self.coordinator) + "> to assign a request")
+
+        #Hinted Handoff Consistency Mechanism
+        if(self.const_mech == 1):
+
+            performHintedHandoff()
 
         try:
 
@@ -485,6 +540,54 @@ class Replica:
                     sock = None
 
             sys.exit()
+
+    def receiveHintedHandoff(self):
+
+        print("")
+        print("---------------Handling Hints---------------")
+        print("")
+
+        hintMessagesReceived = 0
+
+        for socket in self.neighborSockets:
+
+            if(self.neighborSockets.index(socket) == self.coordinator):
+                continue
+            else:
+                msg = socket.recv(1024)
+                if msg:
+
+                    store_msg = store.Msg()
+                    store_msg.ParseFromString(msg)
+                    msgType = store_msg.WhichOneof("msg")
+
+                    if(self.parse_msg(socket, client_add, store_msg)):
+                        print("Got a hint from " + str(self.neighborSockets.index(socket)))
+
+                    else:
+                        print("No hint from " + str(self.neighborSockets.index(socket)))
+
+        print(self.keyValStore)
+
+        print("")
+        print("-------------Done Handling Hints-------------")
+        print("")
+
+    def coordinatorFunction(self, client_sock, client_add, store_msg):
+
+        #Wait to receive hints if consistency mechanism is hinted handoff
+        if(self.const_mech == 1):
+
+            receiveHintedHandoff()
+
+        infoMsg = client_sock.recv(1024)
+
+        if infoMsg:
+
+            store_msg = store.Msg()
+            store_msg.ParseFromString(infoMsg)
+
+        self.parse_msg(client_sock, client_add, store_msg)
 
     #Wait for replica to connect
     def listenForReplica(self, replica):
@@ -612,14 +715,7 @@ class Replica:
 
                     print("Connected to client as coordinator: {" + client_add[0] + ":" + str(client_add[1]) + "}")
 
-                    infoMsg = client_sock.recv(1024)
-
-                    if infoMsg:
-
-                        store_msg = store.Msg()
-                        store_msg.ParseFromString(infoMsg)
-
-                        self.parse_msg(client_sock,client_add,store_msg)
+                    self.coordinatorFunction(client_sock, client_add, store_msg)
 
             except KeyboardInterrupt:
 

@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='store.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n\x0bstore.proto\"&\n\x0fInitCoordinator\x12\x13\n\x0b\x63oordinator\x18\x01 \x01(\r\"$\n\x06GetMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\r\n\x05level\x18\x02 \x01(\r\"1\n\x06PutMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x0b\n\x03val\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\r\"\x1a\n\x0bStringValue\x12\x0b\n\x03val\x18\x01 \x01(\t\"\x1a\n\x07Success\x12\x0f\n\x07success\x18\x02 \x01(\x08\"$\n\x08PairRead\x12\x0b\n\x03key\x18\x01 \x01(\x05\x12\x0b\n\x03val\x18\x02 \x01(\t\"%\n\tPairWrite\x12\x0b\n\x03key\x18\x01 \x01(\x05\x12\x0b\n\x03val\x18\x02 \x01(\t\"\xdd\x01\n\x03Msg\x12 \n\x04init\x18\x01 \x01(\x0b\x32\x10.InitCoordinatorH\x00\x12\x16\n\x03put\x18\x02 \x01(\x0b\x32\x07.PutMsgH\x00\x12\x16\n\x03get\x18\x03 \x01(\x0b\x32\x07.GetMsgH\x00\x12\"\n\nstring_val\x18\x04 \x01(\x0b\x32\x0c.StringValueH\x00\x12\x1e\n\tpair_read\x18\x05 \x01(\x0b\x32\t.PairReadH\x00\x12 \n\npair_write\x18\x06 \x01(\x0b\x32\n.PairWriteH\x00\x12\x17\n\x03suc\x18\x07 \x01(\x0b\x32\x08.SuccessH\x00\x42\x05\n\x03msgb\x06proto3')
+  serialized_pb=_b('\n\x0bstore.proto\"&\n\x0fInitCoordinator\x12\x13\n\x0b\x63oordinator\x18\x01 \x01(\r\"$\n\x06GetMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\r\n\x05level\x18\x02 \x01(\r\"1\n\x06PutMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x0b\n\x03val\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\r\"\x1a\n\x0bStringValue\x12\x0b\n\x03val\x18\x01 \x01(\t\"\x1a\n\x07Success\x12\x0f\n\x07success\x18\x02 \x01(\x08\"$\n\x08PairRead\x12\x0b\n\x03key\x18\x01 \x01(\x05\x12\x0b\n\x03val\x18\x02 \x01(\t\"%\n\tPairWrite\x12\x0b\n\x03key\x18\x01 \x01(\x05\x12\x0b\n\x03val\x18\x02 \x01(\t\"*\n\x04Hint\x12\x0f\n\x07hintKey\x18\x01 \x03(\x05\x12\x11\n\thintValue\x18\x02 \x03(\t\"\xf4\x01\n\x03Msg\x12 \n\x04init\x18\x01 \x01(\x0b\x32\x10.InitCoordinatorH\x00\x12\x16\n\x03put\x18\x02 \x01(\x0b\x32\x07.PutMsgH\x00\x12\x16\n\x03get\x18\x03 \x01(\x0b\x32\x07.GetMsgH\x00\x12\"\n\nstring_val\x18\x04 \x01(\x0b\x32\x0c.StringValueH\x00\x12\x1e\n\tpair_read\x18\x05 \x01(\x0b\x32\t.PairReadH\x00\x12 \n\npair_write\x18\x06 \x01(\x0b\x32\n.PairWriteH\x00\x12\x17\n\x03suc\x18\x07 \x01(\x0b\x32\x08.SuccessH\x00\x12\x15\n\x04hint\x18\x08 \x01(\x0b\x32\x05.HintH\x00\x42\x05\n\x03msgb\x06proto3')
 )
 
 
@@ -277,6 +277,44 @@ _PAIRWRITE = _descriptor.Descriptor(
 )
 
 
+_HINT = _descriptor.Descriptor(
+  name='Hint',
+  full_name='Hint',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='hintKey', full_name='Hint.hintKey', index=0,
+      number=1, type=5, cpp_type=1, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='hintValue', full_name='Hint.hintValue', index=1,
+      number=2, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=277,
+  serialized_end=319,
+)
+
+
 _MSG = _descriptor.Descriptor(
   name='Msg',
   full_name='Msg',
@@ -333,6 +371,13 @@ _MSG = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='hint', full_name='Msg.hint', index=7,
+      number=8, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -348,8 +393,8 @@ _MSG = _descriptor.Descriptor(
       name='msg', full_name='Msg.msg',
       index=0, containing_type=None, fields=[]),
   ],
-  serialized_start=278,
-  serialized_end=499,
+  serialized_start=322,
+  serialized_end=566,
 )
 
 _MSG.fields_by_name['init'].message_type = _INITCOORDINATOR
@@ -359,6 +404,7 @@ _MSG.fields_by_name['string_val'].message_type = _STRINGVALUE
 _MSG.fields_by_name['pair_read'].message_type = _PAIRREAD
 _MSG.fields_by_name['pair_write'].message_type = _PAIRWRITE
 _MSG.fields_by_name['suc'].message_type = _SUCCESS
+_MSG.fields_by_name['hint'].message_type = _HINT
 _MSG.oneofs_by_name['msg'].fields.append(
   _MSG.fields_by_name['init'])
 _MSG.fields_by_name['init'].containing_oneof = _MSG.oneofs_by_name['msg']
@@ -380,6 +426,9 @@ _MSG.fields_by_name['pair_write'].containing_oneof = _MSG.oneofs_by_name['msg']
 _MSG.oneofs_by_name['msg'].fields.append(
   _MSG.fields_by_name['suc'])
 _MSG.fields_by_name['suc'].containing_oneof = _MSG.oneofs_by_name['msg']
+_MSG.oneofs_by_name['msg'].fields.append(
+  _MSG.fields_by_name['hint'])
+_MSG.fields_by_name['hint'].containing_oneof = _MSG.oneofs_by_name['msg']
 DESCRIPTOR.message_types_by_name['InitCoordinator'] = _INITCOORDINATOR
 DESCRIPTOR.message_types_by_name['GetMsg'] = _GETMSG
 DESCRIPTOR.message_types_by_name['PutMsg'] = _PUTMSG
@@ -387,6 +436,7 @@ DESCRIPTOR.message_types_by_name['StringValue'] = _STRINGVALUE
 DESCRIPTOR.message_types_by_name['Success'] = _SUCCESS
 DESCRIPTOR.message_types_by_name['PairRead'] = _PAIRREAD
 DESCRIPTOR.message_types_by_name['PairWrite'] = _PAIRWRITE
+DESCRIPTOR.message_types_by_name['Hint'] = _HINT
 DESCRIPTOR.message_types_by_name['Msg'] = _MSG
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -438,6 +488,13 @@ PairWrite = _reflection.GeneratedProtocolMessageType('PairWrite', (_message.Mess
   # @@protoc_insertion_point(class_scope:PairWrite)
   ))
 _sym_db.RegisterMessage(PairWrite)
+
+Hint = _reflection.GeneratedProtocolMessageType('Hint', (_message.Message,), dict(
+  DESCRIPTOR = _HINT,
+  __module__ = 'store_pb2'
+  # @@protoc_insertion_point(class_scope:Hint)
+  ))
+_sym_db.RegisterMessage(Hint)
 
 Msg = _reflection.GeneratedProtocolMessageType('Msg', (_message.Message,), dict(
   DESCRIPTOR = _MSG,

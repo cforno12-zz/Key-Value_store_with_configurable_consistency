@@ -37,6 +37,11 @@ message PairWrite {
   string val = 2;
 }
 
+message Hint{
+  repeated int32 hintKey = 1;
+  repeated string hintValue = 2;
+}
+
 message Msg {
   oneof msg {
     InitCoordinator init = 1;
@@ -46,5 +51,6 @@ message Msg {
     PairRead pair_read = 5;
     PairWrite pair_write = 6;
     Success suc = 7;
+    Hint hint = 8;
   }
 }

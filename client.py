@@ -61,6 +61,7 @@ class Client:
             except:
 
                 print("Can't connect")
+                continue
 
             msg = store_pb2.Msg()
             msg.init.coordinator = coordinator
