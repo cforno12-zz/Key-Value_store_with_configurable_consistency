@@ -87,27 +87,27 @@ class Replica:
         msg.pair_read.key = key
         msg.pair_read.val = self.keyValStore[key].split(":")[0]
 
-        print("using " + str(contact) + "to send message")
         socket.sendall(msg.SerializeToString())
 
         response = socket.recv(1024)
 
-        print("we have recieved the successful message")
-
         msg = store.Msg()
         if response:
-            print ("we didn't recieve a null message")
             msg.ParseFromString(response)
-            print(msg)
-            if msg.WhichOneof("msg") == "succ":
-                if msg.suc.success == "true":
-                    print("Recieved SUCCESS from replica " + contact)
+            if msg.WhichOneof("msg") == "suc":
+                if msg.suc.success == True:
                     self.OKs.append(True)
                 else:
                     pass
 
                     # do the consistency mechanism
                     # only one of the threads should do this
+        thread.exit()
+    def reset_msg(self, socket, contact):
+        msg = store.Msg()
+        msg.pair_write.key = -1
+        msg.pair_write.val = ":)"
+        socket.sendall(msg.SerializeToString())
         thread.exit()
 
     def get_consistency(self, key, level):
@@ -119,12 +119,15 @@ class Replica:
         self.OKs = []
         begins = self.bytePartitioner(key)
         #contact all three
-        for i in range(3):
+        for i in range(4):
             contact = (int(begins) + i) % 4
             if int(contact) == int(self.replica_num):
                 continue
             sock = self.neighborSockets[contact]
-            thread.start_new_thread(self.get_consistency_helper, (int(key), sock, contact))
+            if i == 4:
+                thread.start_new_thread(self.reset_msg, (sock, contact))
+            else:
+                thread.start_new_thread(self.get_consistency_helper, (int(key), sock, contact))
 
         counter = 0 # use this as a time out mechanism
         while len(self.OKs) < OK_len and counter < 5: # we only need one OK from the replicas
@@ -338,10 +341,8 @@ class Replica:
                 msg.suc.success = False
         else:
             msg.suc.success = False
-        print("we are about to send back a successful message")
 
         sock.sendall(msg.SerializeToString())
-        print("we sent back a  successful message")
 
     #Parse write-ahead log at beginning of execution
     def parseWriteLog(self):
@@ -436,7 +437,6 @@ class Replica:
             self.coordinator = msg.init.coordinator
 
         elif msg_type == "pair_read":
-            print("we got a pair_read msg")
             self.compare_pair(msg.pair_read.key, msg.pair_read.val, client_socket)
             # use the function i created --cris
 
