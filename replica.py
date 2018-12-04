@@ -18,6 +18,7 @@ import threading
         5.) Hinted-handoff
 
 '''
+
 import _thread as thread
 
 class Replica:
@@ -158,6 +159,7 @@ class Replica:
 
     #Put a value into the key/val store
     def put(self, key, val, level, client_socket):
+
 
         #Determine how many replicas are needed before returning to client
         replicasForConsistency = level + 1
@@ -361,7 +363,6 @@ class Replica:
         writeLogInfo = open(self.logName, "r")
 
         emptyCheck = writeLogInfo.read(1).strip()
-
         writeLogInfo.close()
 
         if not emptyCheck:
