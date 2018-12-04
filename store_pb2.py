@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='store.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n\x0bstore.proto\"&\n\x0fInitCoordinator\x12\x13\n\x0b\x63oordinator\x18\x01 \x01(\r\"$\n\x06GetMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\r\n\x05level\x18\x02 \x01(\r\"1\n\x06PutMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x0b\n\x03val\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\r\"\x1a\n\x0bStringValue\x12\x0b\n\x03val\x18\x01 \x01(\t\"\x1a\n\x07Success\x12\x0f\n\x07success\x18\x01 \x01(\x08\" \n\x04Pair\x12\x0b\n\x03key\x18\x01 \x01(\x05\x12\x0b\n\x03val\x18\x02 \x01(\t\"\xb2\x01\n\x03Msg\x12 \n\x04init\x18\x01 \x01(\x0b\x32\x10.InitCoordinatorH\x00\x12\x16\n\x03put\x18\x02 \x01(\x0b\x32\x07.PutMsgH\x00\x12\x16\n\x03get\x18\x03 \x01(\x0b\x32\x07.GetMsgH\x00\x12\"\n\nstring_val\x18\x04 \x01(\x0b\x32\x0c.StringValueH\x00\x12\x15\n\x04pair\x18\x05 \x01(\x0b\x32\x05.PairH\x00\x12\x17\n\x03suc\x18\x06 \x01(\x0b\x32\x08.SuccessH\x00\x42\x05\n\x03msgb\x06proto3')
+  serialized_pb=_b('\n\x0bstore.proto\"&\n\x0fInitCoordinator\x12\x13\n\x0b\x63oordinator\x18\x01 \x01(\r\"$\n\x06GetMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\r\n\x05level\x18\x02 \x01(\r\"1\n\x06PutMsg\x12\x0b\n\x03key\x18\x01 \x01(\r\x12\x0b\n\x03val\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\r\"\x1a\n\x0bStringValue\x12\x0b\n\x03val\x18\x01 \x01(\t\"\x1a\n\x07Success\x12\x0f\n\x07success\x18\x02 \x01(\x08\"$\n\x08PairRead\x12\x0b\n\x03key\x18\x01 \x01(\x05\x12\x0b\n\x03val\x18\x02 \x01(\t\"%\n\tPairWrite\x12\x0b\n\x03key\x18\x01 \x01(\x05\x12\x0b\n\x03val\x18\x02 \x01(\t\"\xdd\x01\n\x03Msg\x12 \n\x04init\x18\x01 \x01(\x0b\x32\x10.InitCoordinatorH\x00\x12\x16\n\x03put\x18\x02 \x01(\x0b\x32\x07.PutMsgH\x00\x12\x16\n\x03get\x18\x03 \x01(\x0b\x32\x07.GetMsgH\x00\x12\"\n\nstring_val\x18\x04 \x01(\x0b\x32\x0c.StringValueH\x00\x12\x1e\n\tpair_read\x18\x05 \x01(\x0b\x32\t.PairReadH\x00\x12 \n\npair_write\x18\x06 \x01(\x0b\x32\n.PairWriteH\x00\x12\x17\n\x03suc\x18\x07 \x01(\x0b\x32\x08.SuccessH\x00\x42\x05\n\x03msgb\x06proto3')
 )
 
 
@@ -179,7 +179,7 @@ _SUCCESS = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='success', full_name='Success.success', index=0,
-      number=1, type=8, cpp_type=7, label=1,
+      number=2, type=8, cpp_type=7, label=1,
       has_default_value=False, default_value=False,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -201,22 +201,22 @@ _SUCCESS = _descriptor.Descriptor(
 )
 
 
-_PAIR = _descriptor.Descriptor(
-  name='Pair',
-  full_name='Pair',
+_PAIRREAD = _descriptor.Descriptor(
+  name='PairRead',
+  full_name='PairRead',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='key', full_name='Pair.key', index=0,
+      name='key', full_name='PairRead.key', index=0,
       number=1, type=5, cpp_type=1, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='val', full_name='Pair.val', index=1,
+      name='val', full_name='PairRead.val', index=1,
       number=2, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -235,7 +235,45 @@ _PAIR = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=200,
-  serialized_end=232,
+  serialized_end=236,
+)
+
+
+_PAIRWRITE = _descriptor.Descriptor(
+  name='PairWrite',
+  full_name='PairWrite',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='key', full_name='PairWrite.key', index=0,
+      number=1, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='val', full_name='PairWrite.val', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=238,
+  serialized_end=275,
 )
 
 
@@ -275,15 +313,22 @@ _MSG = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='pair', full_name='Msg.pair', index=4,
+      name='pair_read', full_name='Msg.pair_read', index=4,
       number=5, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='suc', full_name='Msg.suc', index=5,
+      name='pair_write', full_name='Msg.pair_write', index=5,
       number=6, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='suc', full_name='Msg.suc', index=6,
+      number=7, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -303,15 +348,16 @@ _MSG = _descriptor.Descriptor(
       name='msg', full_name='Msg.msg',
       index=0, containing_type=None, fields=[]),
   ],
-  serialized_start=235,
-  serialized_end=413,
+  serialized_start=278,
+  serialized_end=499,
 )
 
 _MSG.fields_by_name['init'].message_type = _INITCOORDINATOR
 _MSG.fields_by_name['put'].message_type = _PUTMSG
 _MSG.fields_by_name['get'].message_type = _GETMSG
 _MSG.fields_by_name['string_val'].message_type = _STRINGVALUE
-_MSG.fields_by_name['pair'].message_type = _PAIR
+_MSG.fields_by_name['pair_read'].message_type = _PAIRREAD
+_MSG.fields_by_name['pair_write'].message_type = _PAIRWRITE
 _MSG.fields_by_name['suc'].message_type = _SUCCESS
 _MSG.oneofs_by_name['msg'].fields.append(
   _MSG.fields_by_name['init'])
@@ -326,8 +372,11 @@ _MSG.oneofs_by_name['msg'].fields.append(
   _MSG.fields_by_name['string_val'])
 _MSG.fields_by_name['string_val'].containing_oneof = _MSG.oneofs_by_name['msg']
 _MSG.oneofs_by_name['msg'].fields.append(
-  _MSG.fields_by_name['pair'])
-_MSG.fields_by_name['pair'].containing_oneof = _MSG.oneofs_by_name['msg']
+  _MSG.fields_by_name['pair_read'])
+_MSG.fields_by_name['pair_read'].containing_oneof = _MSG.oneofs_by_name['msg']
+_MSG.oneofs_by_name['msg'].fields.append(
+  _MSG.fields_by_name['pair_write'])
+_MSG.fields_by_name['pair_write'].containing_oneof = _MSG.oneofs_by_name['msg']
 _MSG.oneofs_by_name['msg'].fields.append(
   _MSG.fields_by_name['suc'])
 _MSG.fields_by_name['suc'].containing_oneof = _MSG.oneofs_by_name['msg']
@@ -336,7 +385,8 @@ DESCRIPTOR.message_types_by_name['GetMsg'] = _GETMSG
 DESCRIPTOR.message_types_by_name['PutMsg'] = _PUTMSG
 DESCRIPTOR.message_types_by_name['StringValue'] = _STRINGVALUE
 DESCRIPTOR.message_types_by_name['Success'] = _SUCCESS
-DESCRIPTOR.message_types_by_name['Pair'] = _PAIR
+DESCRIPTOR.message_types_by_name['PairRead'] = _PAIRREAD
+DESCRIPTOR.message_types_by_name['PairWrite'] = _PAIRWRITE
 DESCRIPTOR.message_types_by_name['Msg'] = _MSG
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -375,12 +425,19 @@ Success = _reflection.GeneratedProtocolMessageType('Success', (_message.Message,
   ))
 _sym_db.RegisterMessage(Success)
 
-Pair = _reflection.GeneratedProtocolMessageType('Pair', (_message.Message,), dict(
-  DESCRIPTOR = _PAIR,
+PairRead = _reflection.GeneratedProtocolMessageType('PairRead', (_message.Message,), dict(
+  DESCRIPTOR = _PAIRREAD,
   __module__ = 'store_pb2'
-  # @@protoc_insertion_point(class_scope:Pair)
+  # @@protoc_insertion_point(class_scope:PairRead)
   ))
-_sym_db.RegisterMessage(Pair)
+_sym_db.RegisterMessage(PairRead)
+
+PairWrite = _reflection.GeneratedProtocolMessageType('PairWrite', (_message.Message,), dict(
+  DESCRIPTOR = _PAIRWRITE,
+  __module__ = 'store_pb2'
+  # @@protoc_insertion_point(class_scope:PairWrite)
+  ))
+_sym_db.RegisterMessage(PairWrite)
 
 Msg = _reflection.GeneratedProtocolMessageType('Msg', (_message.Message,), dict(
   DESCRIPTOR = _MSG,

@@ -6,6 +6,7 @@ import store_pb2 as store
 import struct
 import time
 import threading
+import _thread as thread
 
 '''
 
@@ -19,7 +20,7 @@ import threading
 
 '''
 
-import _thread as thread
+
 
 class Replica:
     def __init__(self, replica_num, server_socket, mech):
@@ -80,19 +81,23 @@ class Replica:
 
     def get_consistency_helper(self, key, socket, contact):
         msg = store.Msg()
-        msg.pair.key = key
-        msg.pair.val = self.keyValStore[key].split(":")[0]
+        msg.pair_read.key = key
+        msg.pair_read.val = self.keyValStore[key].split(":")[0]
         
         print("using " + str(contact) + "to send message")
         socket.sendall(msg.SerializeToString())
 
         response = socket.recv(1024)
 
+        print("we have recieved the successful message")
+
         msg = store.Msg()
         if response:
+            print ("we didn't recieve a null message")
             msg.ParseFromString(response)
+            print(msg)
             if msg.WhichOneof("msg") == "succ":
-                if msg.suc.success == True:
+                if msg.suc.success == "true":
                     print("Recieved SUCCESS from replica " + contact)
                     self.OKs.append(True)
                 else:
@@ -113,19 +118,17 @@ class Replica:
         #contact all three
         for i in range(3):
             contact = (int(begins) + i) % 4
-            print("HERE: " + str(contact) + " and " + str(self.replica_num))
             if int(contact) == int(self.replica_num):
-                print("we dont want to contact ourselves" + contact + " and " + self.replica_num)
                 continue
             sock = self.neighborSockets[contact]
-            print("contacting replica: " + str(contact))
             thread.start_new_thread(self.get_consistency_helper, (int(key), sock, contact))
 
         counter = 0 # use this as a time out mechanism
-        while len(self.OKs) < OK_len or counter < 5: # we only need one OK from the replicas
+        while len(self.OKs) < OK_len and counter < 5: # we only need one OK from the replicas
+            print("number of OKs: " + str(len(self.OKs)))
             time.sleep(0.5)
             counter += 1
-            continue
+
         if len(self.OKs) < OK_len:
             pass
             # what do we do when none of them OK?
@@ -153,9 +156,7 @@ class Replica:
 
         msg_to_send = store.Msg()
         msg_to_send.string_val.val = val_to_send
-        print("message:" + msg_to_send)
         client_socket.sendall(msg_to_send.SerializeToString())
-        print("message sent")
 
     #Put a value into the key/val store
     def put(self, key, val, level, client_socket):
@@ -187,8 +188,8 @@ class Replica:
 
                 #Create message to send to replicas
                 msg = store.Msg()
-                msg.pair.key = key
-                msg.pair.val = val
+                msg.pair_write.key = key
+                msg.pair_write.val = val
 
                 index = operationReplicas.index(i)
 
@@ -328,8 +329,8 @@ class Replica:
                     continue
 
                 msg = store.Msg()
-                msg.pair.key = -1
-                msg.pair.val = "None"
+                msg.pair_write.key = -1
+                msg.pair_write.val = "None"
                 repSock = self.neighborSockets[i]
                 time.sleep(0.5)
                 repSock.sendall(msg.SerializeToString())
@@ -343,8 +344,10 @@ class Replica:
                 msg.suc.success = False
         else:
             msg.suc.success = False
+        print("we are about to send back a successful message")
 
         sock.sendall(msg.SerializeToString())
+        print("we sent back a  successful message")
 
     def parseWriteLog(self):
 
@@ -397,16 +400,11 @@ class Replica:
 
             self.get(msg.get.key, msg.get.level, client_socket)
 
-        elif msg_type == "string_val":
-
-            pass
-
-
         #Used to communicate between replicas
-        elif msg_type == "pair":
+        elif msg_type == "pair_write":
 
-            key = msg.pair.key
-            val = msg.pair.val
+            key = msg.pair_write.key
+            val = msg.pair_write.val
 
             if(key == -1):
                 return False
@@ -439,6 +437,10 @@ class Replica:
         elif msg_type == "init":
             self.coordinator = msg.init.coordinator
 
+        elif msg_type == "pair_read":
+            print("we got a pair_read msg")
+            self.compare_pair(msg.pair_read.key, msg.pair_read.val, client_socket)
+            # use the function i created --cris
         else:
 
             print("Unrecognized message type: " + str(msg_type))
@@ -469,7 +471,7 @@ class Replica:
                 msg.suc.success = True
                 coordinatorSocket.sendall(msg.SerializeToString())
 
-        except KeyboardInterrupt
+        except KeyboardInterrupt or OSError:
 
             if self.clientSocket:
 

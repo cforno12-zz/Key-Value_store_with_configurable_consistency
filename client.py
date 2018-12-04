@@ -39,6 +39,7 @@ class Client:
         msg.get.level = consistency
         print("sending get message")
         self.coordinatorSocket.sendall(msg.SerializeToString())
+        print("trying to recieve message")
         val = self.coordinatorSocket.recv(1024)
         if val:
             s = store_pb2.Msg()
