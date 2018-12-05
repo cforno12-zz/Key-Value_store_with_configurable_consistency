@@ -42,6 +42,10 @@ message Hint{
   repeated string hintValue = 2;
 }
 
+message Timestamp{
+  int32 key = 1;
+}
+
 message Msg {
   oneof msg {
     InitCoordinator init = 1;
@@ -52,5 +56,6 @@ message Msg {
     PairWrite pair_write = 6;
     Success suc = 7;
     Hint hint = 8;
+    Timestamp timestamp = 9;
   }
 }
