@@ -1,4 +1,4 @@
-0 remote04.cs.binghamton.edu 10024
-1 remote00.cs.binghamton.edu 10025
-2 remote03.cs.binghamton.edu 10026
-3 remote07.cs.binghamton.edu 10027
+0 g7-09.class.cs.int 10024
+1 g7-09.class.cs.int 10025
+2 g7-09.class.cs.int 10026
+3 g7-09.class.cs.int 10027

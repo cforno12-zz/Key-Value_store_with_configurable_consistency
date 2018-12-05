@@ -26,6 +26,7 @@ import _thread as thread
 
 
 class Replica:
+
     def __init__(self, replica_num, server_socket, mech, rM):
         self.storeLock = threading.Lock()
         self.logName = "writeAhead" + replica_num + ".txt"
@@ -468,7 +469,7 @@ class Replica:
         if not msg:
 
             print ("Error: null message")
-            return False
+            return "False"
 
         msg_type = msg.WhichOneof("msg")
 
@@ -488,7 +489,7 @@ class Replica:
 
             if(key == -1):
 
-                return False
+                return "False"
 
             self.storeLock.acquire()
 
@@ -503,11 +504,11 @@ class Replica:
             if key in self.keyValStore:
 
                 print("Added: " + val + " to location: " + str(key))
-                return True
+                return "True"
 
             else:
 
-                return False
+                return "False"
 
         #Used to determine if an operation was successful or not
         elif msg_type == "suc":
@@ -556,7 +557,7 @@ class Replica:
             self.retrieve_timestamp(msg.timestamp.key, client_socket)
         else:
 
-            print("Unrecognized message type: " + str(msg_type))
+            return False
 
     def performHintedHandoff(self):
 
@@ -622,11 +623,11 @@ class Replica:
             msgType = store_msg.WhichOneof("msg")
             valid = self.parse_msg(coordinatorSocket, ("", ""), store_msg)
 
-            if(not valid):
+            if(valid == "False"):
 
                 return
 
-            else:
+            elif(valid == "True"):
 
                 msg = store.Msg()
                 msg.suc.success = True
@@ -669,10 +670,11 @@ class Replica:
                     store_msg.ParseFromString(msg)
                     msgType = store_msg.WhichOneof("msg")
 
-                    if(self.parse_msg(socket, ("", ""), store_msg)):
+                    ret = self.parse_msg(socket, ("", ""), store_msg)
+                    if(ret == "True"):
                         print("Got a hint from " + str(self.neighborSockets.index(socket)))
 
-                    else:
+                    elif(ret == "False"):
                         print("No hint from " + str(self.neighborSockets.index(socket)))
 
         print(self.keyValStore)
@@ -685,7 +687,7 @@ class Replica:
 
         if self.recoveryMode:
 
-            for replica in self.replicaList:
+            for replica in reversed(self.replicaList):
 
                 index = self.replicaList.index(replica)
 
@@ -696,6 +698,19 @@ class Replica:
                 else:
 
                     incomingConn, incomingAddr = self.clientSocket.accept()
+
+                    '''
+
+                        for every replica in replicaList
+
+                            ip = replica[0].getIp()
+
+                            if incomingAddr[0] == ip
+
+                                self.neighborSockets[replicaList.index(replica)] = incomingConn
+
+                    '''
+
                     self.neighborSockets[self.replicaList.index(replica)] = incomingConn
                     print("Got connection from " + str(index) + ": {" + incomingAddr[0] + ", " + str(incomingAddr[1]) + "}")
                     print("")
@@ -774,7 +789,8 @@ class Replica:
 
     def attemptToConnect(self):
 
-        seconds = (int(self.replica_num) + 4) % 4
+        seconds = (int(self.replica_num) + 3) % 4
+        time.sleep(seconds)
 
         while True:
 
