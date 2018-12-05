@@ -147,6 +147,8 @@ class Replica:
 
         response = socket.recv(1024)
 
+        
+
         msg = store.Msg()
         if response:
             msg.ParseFromString(response)
@@ -194,18 +196,21 @@ class Replica:
                 thread.start_new_thread(self.get_consistency_helper, (int(key), sock, contact))
 
         counter = 0 # use this as a time out mechanism
+        time.sleep(3)
         while len(self.OKs) < OK_len and counter < 5: # we only need one OK from the replicas
             print("number of OKs: " + str(len(self.OKs)))
             time.sleep(0.5)
             counter += 1
 
         if len(self.OKs) < OK_len:
-            pass
-            # what do we do when none of them OK?
-            # do we call the consistency mechanism?
-            # then we call this function again?
+            return False
+        else:
+            return True
+
 
     def get(self, key, level, client_socket):
+
+        consistency_worked = None
 
         if key in self.keyValStore:
             val_to_send = self.keyValStore[key].split(":")
@@ -213,7 +218,7 @@ class Replica:
             print("this is the value we are sending: " + val_to_send)
             time_stamp = val_to_send[1]
 
-            self.get_consistency(key, level)
+            consistency_worked = self.get_consistency(key, level)
             msg_to_send = store.Msg()
             msg_to_send.string_val.val = val_to_send
             client_socket.sendall(msg_to_send.SerializeToString())
@@ -234,6 +239,14 @@ class Replica:
                     msg = store.Msg()
                     msg.string_val.val = msg_to_respond.string_val.val
                     client_socket.sendall(msg.SerializeToString())
+                    consistency_worked = True
+        if consistency_worked == True:
+            return
+        else:
+            # send a message to the client that it didn't work
+            not_OK = store.Msg()
+            not_OK.suc.success = False
+            client_socket.sendall(not_OK.SerializeToString())
 
     #Put a value into the key/val store
     def put(self, key, val, level, client_socket):
@@ -479,7 +492,7 @@ class Replica:
 
         elif msg_type == "get":
 
-            self.get(msg.get.key, msg.get.level, client_socket)
+             self.get(msg.get.key, msg.get.level, client_socket)
 
         #Used to communicate between replicas
         elif msg_type == "pair_write":
@@ -534,7 +547,7 @@ class Replica:
 
         elif msg_type == "pair_read":
 
-            print("Parsing function")
+            print("We got a pair_read function")
             self.compare_pair(msg.pair_read.key, msg.pair_read.val, client_socket)
 
         elif msg_type == "hint":
@@ -633,7 +646,7 @@ class Replica:
                 msg.suc.success = True
                 coordinatorSocket.sendall(msg.SerializeToString())
 
-        except KeyboardInterrupt or OSError:
+        except (KeyboardInterrupt, OSError) as e:
 
             if self.clientSocket:
 
