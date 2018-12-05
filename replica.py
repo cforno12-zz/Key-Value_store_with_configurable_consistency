@@ -17,6 +17,7 @@ import _thread as thread
         3.) Test "get" consistency levels
         4.) Read-repair
         5.) Hinted-handoff
+        6.) when recieved get request that we dont own, it doesnt work
 
 '''
 
@@ -39,6 +40,8 @@ class Replica:
         self.successfulPuts = 0
         self.hints = [[], [], [], []]           #2d Array of hints
         self.recoveryMode = rM
+        self.handling_read_repair = False
+        self.RR_lock = threading.Lock()         #read repair lock so no two threads can set the boolean to true
 
     def parseReplicaFile(self):
 
@@ -82,6 +85,53 @@ class Replica:
 
         return firstRep
 
+    def read_repair(self, key):
+        begins = self.bytePartitioner(key)
+        timestamps = {} # replica num => timestamp
+        msg = store.Msg()
+        msg.timestamp.key = key
+        for i in range(3):
+            contact = (int(begins) + i) % 4
+            if int(contact) == int(self.replica_num):
+                continue
+            print("contacting replica " + str(contact) + " for timestamp")
+            socket = self.neighborSockets[contact]
+            # we want to find out who has the latest version of the object
+            socket.sendall(msg.SerializeToString())
+            response = socket.recv(1024)
+            parser = store.Msg()
+            if response:
+                parser.ParseFromString(response)
+                print("we recieved message " + str(parser.pair_read.val) + " from replica " + str(contact))
+                if parser.WhichOneof("msg") == "pair_read":
+                    timestamps[contact] = parser.pair_read.val
+
+        #now that we have all the timestamps of all the replicas we have to compare the
+        # timestamps
+        timestamps[int(self.replica_num)] = self.keyValStore[key] # add our own verison
+        max_timestamp = 0
+        max_val = ""
+        for replica_num, val in timestamps.items():
+            print("we got " + str(val) + " from replica " + str(replica_num))
+            value, timestamp = val.split(":")
+            timestamp = float(timestamp)
+            if max_timestamp < timestamp:
+                max_timestamp = timestamp
+                max_val = value
+
+        self.keyValStore[key] = max_val + ":" + str(time.time())
+
+        read_repair_msg = store.Msg()
+        read_repair_msg.pair_write.key = key
+        read_repair_msg.pair_write.val = max_val + ":" + str(time.time())
+
+        for i in range(3):
+            contact = (int(begins) + i) % 4
+            if int(contact) == int(self.replica_num):
+                continue
+            socket = self.neighborSockets[contact]
+            socket.sendall(msg.SerializeToString())
+
     def get_consistency_helper(self, key, socket, contact):
         msg = store.Msg()
         msg.pair_read.key = key
@@ -98,10 +148,19 @@ class Replica:
                 if msg.suc.success == True:
                     self.OKs.append(True)
                 else:
-                    pass
+                    if self.const_mech == 0:
+                        # do a read repair
+                        self.RR_lock.acquire()
+                        if self.handling_read_repair == False:
+                            self.handling_read_repair = True
+                            self.RR_lock.release()
+                            print("we are repairing...")
+                            self.read_repair(key)
+                        else:
+                            self.RR_lock.release()
+                        
 
-                    # do the consistency mechanism
-                    # only one of the threads should do this
+
         thread.exit()
     def reset_msg(self, socket, contact):
         msg = store.Msg()
@@ -118,13 +177,13 @@ class Replica:
 
         self.OKs = []
         begins = self.bytePartitioner(key)
-        #contact all three
+
         for i in range(4):
             contact = (int(begins) + i) % 4
             if int(contact) == int(self.replica_num):
                 continue
             sock = self.neighborSockets[contact]
-            if i == 4:
+            if i == 3:
                 thread.start_new_thread(self.reset_msg, (sock, contact))
             else:
                 thread.start_new_thread(self.get_consistency_helper, (int(key), sock, contact))
@@ -150,6 +209,10 @@ class Replica:
             time_stamp = val_to_send[1]
 
             self.get_consistency(key, level)
+            msg_to_send = store.Msg()
+            msg_to_send.string_val.val = val_to_send
+            client_socket.sendall(msg_to_send.SerializeToString())
+
         else:
             #we contact the next replica in the ring
             sock_to_contact = self.neighborSockets[(int(self.replica_num) + 1) % 4]
@@ -158,11 +221,16 @@ class Replica:
             msg_to_send.get.level = level
             print("key is not in this node, asking next node...")
             sock_to_contact.sendall(msg_to_send.SerializeToString())
-            val_to_send = sock_to_contact.recv(1024)
+            val = sock_to_contact.recv(1024)
+            if val:
+                msg_to_respond = store.Msg()
+                msg_to_respond.ParseFromString(val)
+                if msg_to_respond.WhichOneof("msg") == "string_val":
+                    msg = store.Msg()
+                    msg.string_val.val = msg_to_respond.string_val.val
+                    client_socket.sendall(msg.SerializeToString())
+    
 
-        msg_to_send = store.Msg()
-        msg_to_send.string_val.val = val_to_send
-        client_socket.sendall(msg_to_send.SerializeToString())
 
     #Put a value into the key/val store
     def put(self, key, val, level, client_socket):
@@ -335,7 +403,7 @@ class Replica:
     def compare_pair(self, key, val, sock):
         msg = store.Msg()
         if key in self.keyValStore:
-            if self.keyValStore[key] == val:
+            if self.keyValStore[key].split(":")[0] == val:
                 msg.suc.success = True
             else:
                 msg.suc.success = False
@@ -361,7 +429,7 @@ class Replica:
 
             components = line.strip().split(":")
             key = int(components[0])
-            val = components[1]
+            val = components[1] + ":" + components[2]
             self.keyValStore[key] = val
 
         writeLogInfo.close()
@@ -379,6 +447,14 @@ class Replica:
 
             print("Added <" + str(hKeys[i]) + " " + hVals[i] + ">")
 
+
+    def retrieve_timestamp(self, key, socket):
+        msg = store.Msg()
+        msg.pair_read.key = key
+        msg.pair_read.val = self.keyValStore[int(key)]
+        print("sending timestamp value: " + self.keyValStore[int(key)])
+        socket.sendall(msg.SerializeToString())
+        
     #Function to parse all protobuf messages
     def parse_msg(self, client_socket, client_add, msg):
 
@@ -410,7 +486,7 @@ class Replica:
             self.storeLock.acquire()
 
             writeLogInfo = open(self.logName, "a")
-            writeLogInfo.write(str(key) + ":" + val + str(time.time()) + "\n")
+            writeLogInfo.write(str(key) + ":" + val + ":" + str(time.time()) + "\n")
             writeLogInfo.close()
 
             self.keyValStore[key] = val;
@@ -438,7 +514,6 @@ class Replica:
 
         elif msg_type == "pair_read":
             self.compare_pair(msg.pair_read.key, msg.pair_read.val, client_socket)
-            # use the function i created --cris
 
         elif msg_type == "hint":
 
@@ -456,6 +531,8 @@ class Replica:
 
                 return True
 
+        elif msg_type == "timestamp":
+            self.retrieve_timestamp(msg.timestamp.key, client_socket)
         else:
 
             print("Unrecognized message type: " + str(msg_type))
