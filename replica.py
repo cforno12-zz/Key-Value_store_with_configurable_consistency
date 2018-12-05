@@ -159,8 +159,6 @@ class Replica:
                         else:
                             self.RR_lock.release()
                         
-
-
         thread.exit()
     def reset_msg(self, socket, contact):
         msg = store.Msg()
