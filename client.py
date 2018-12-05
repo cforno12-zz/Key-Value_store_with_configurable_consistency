@@ -74,10 +74,15 @@ class Client:
     def run(self):
 
         while True:
+
             self.coordinatorSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             coordinator = int(input("Enter replica to contact: "))
 
             self.sendInitialization(coordinator)
+
+            stringVersion = str(coordinator)
+            if len(stringVersion) == 2:
+                coordinator = int(stringVersion[0])
 
             request = input("Enter request (get/put): ")
 

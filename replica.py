@@ -12,6 +12,8 @@ import _thread as thread
 
     TODO:
 
+        ***Ensure quorum is complete for gets**
+
         1.) Restructure to utilize threads
         2.) Handle disconnects and keep track of active replicas
         3.) Test "get" consistency levels
@@ -42,6 +44,7 @@ class Replica:
         self.recoveryMode = rM
         self.handling_read_repair = False
         self.RR_lock = threading.Lock()         #read repair lock so no two threads can set the boolean to true
+        self.recoveryFlag = False
 
     def parseReplicaFile(self):
 
@@ -137,6 +140,8 @@ class Replica:
         msg.pair_read.key = key
         msg.pair_read.val = self.keyValStore[key].split(":")[0]
 
+        print("sending " + str(msg) + " to " + str(contact))
+
         socket.sendall(msg.SerializeToString())
 
         response = socket.recv(1024)
@@ -158,7 +163,7 @@ class Replica:
                             self.read_repair(key)
                         else:
                             self.RR_lock.release()
-                        
+
         thread.exit()
     def reset_msg(self, socket, contact):
         msg = store.Msg()
@@ -168,6 +173,7 @@ class Replica:
         thread.exit()
 
     def get_consistency(self, key, level):
+        OK_len = 0
         if level == 0:
             OK_len = 1
         elif level == 1:
@@ -227,8 +233,6 @@ class Replica:
                     msg = store.Msg()
                     msg.string_val.val = msg_to_respond.string_val.val
                     client_socket.sendall(msg.SerializeToString())
-    
-
 
     #Put a value into the key/val store
     def put(self, key, val, level, client_socket):
@@ -399,8 +403,13 @@ class Replica:
             client_socket.sendall(msg_to_send.SerializeToString())
 
     def compare_pair(self, key, val, sock):
+
         msg = store.Msg()
+
+        print(self.keyValStore)
+
         if key in self.keyValStore:
+
             if self.keyValStore[key].split(":")[0] == val:
                 msg.suc.success = True
             else:
@@ -452,7 +461,7 @@ class Replica:
         msg.pair_read.val = self.keyValStore[int(key)]
         print("sending timestamp value: " + self.keyValStore[int(key)])
         socket.sendall(msg.SerializeToString())
-        
+
     #Function to parse all protobuf messages
     def parse_msg(self, client_socket, client_add, msg):
 
@@ -508,9 +517,23 @@ class Replica:
 
         #Initializes the coordinator for a request
         elif msg_type == "init":
-            self.coordinator = msg.init.coordinator
+
+            newCoord = -1
+            string = str(msg.init.coordinator)
+
+            if len(string) == 2:
+                self.recoveryFlag = True
+                print("This is a recovery")
+                newCoord = int(string[0])
+
+            else:
+                newCoord = msg.init.coordinator
+
+            self.coordinator = newCoord
 
         elif msg_type == "pair_read":
+
+            print("Parsing function")
             self.compare_pair(msg.pair_read.key, msg.pair_read.val, client_socket)
 
         elif msg_type == "hint":
@@ -576,6 +599,11 @@ class Replica:
 
         print("Waiting for coordinator <" + str(self.coordinator) + "> to assign a request")
 
+        if(self.recoveryFlag):
+            t = threading.Thread(target = self.attemptToConnect)
+            t.start()
+            t.join()
+
         #Hinted Handoff Consistency Mechanism
         if(self.const_mech == 1):
 
@@ -584,6 +612,8 @@ class Replica:
         try:
 
             coordinatorSocket = self.neighborSockets[self.coordinator]
+
+            time.sleep(2)
 
             msg = coordinatorSocket.recv(1024)
 
@@ -623,6 +653,8 @@ class Replica:
         print("---------------Handling Hints---------------")
         print("")
 
+        time.sleep(2)
+
         hintMessagesReceived = 0
 
         for socket in self.neighborSockets:
@@ -650,6 +682,23 @@ class Replica:
         print("")
 
     def coordinatorFunction(self, client_sock, client_add, store_msg):
+
+        if self.recoveryMode:
+
+            for replica in self.replicaList:
+
+                index = self.replicaList.index(replica)
+
+                if(index == int(self.replica_num)):
+
+                    continue
+
+                else:
+
+                    incomingConn, incomingAddr = self.clientSocket.accept()
+                    self.neighborSockets[self.replicaList.index(replica)] = incomingConn
+                    print("Got connection from " + str(index) + ": {" + incomingAddr[0] + ", " + str(incomingAddr[1]) + "}")
+                    print("")
 
         #Wait to receive hints if consistency mechanism is hinted handoff
         if(self.const_mech == 1):
@@ -723,6 +772,24 @@ class Replica:
         for replica in reversed(connectTo):
             self.connectToReplica(replica)
 
+    def attemptToConnect(self):
+
+        seconds = (int(self.replica_num) + 4) % 4
+
+        while True:
+
+            try:
+
+                newSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                newSocket.connect(self.replicaList[self.coordinator])
+                print("Connected")
+                break
+
+            except socket.error:
+                continue
+
+        self.neighborSockets[self.coordinator] = newSocket
+
     def run(self):
 
         self.clientSocket.bind(('', self.portNum))
@@ -736,7 +803,9 @@ class Replica:
         print("---------------Connecting All Replicas---------------")
         print("")
 
-        self.initializeNeighboringSockets()
+        if not self.recoveryMode:
+
+            self.initializeNeighboringSockets()
 
         print("--------------Ready To Receive Requests--------------")
 
