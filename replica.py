@@ -23,7 +23,7 @@ import _thread as thread
 
 
 class Replica:
-    def __init__(self, replica_num, server_socket, mech):
+    def __init__(self, replica_num, server_socket, mech, rM):
         self.storeLock = threading.Lock()
         self.logName = "writeAhead" + replica_num + ".txt"
         self.coordinator = -1                   #Determines whether to wait or send
@@ -38,6 +38,7 @@ class Replica:
         self.OKs = []
         self.successfulPuts = 0
         self.hints = [[], [], [], []]           #2d Array of hints
+        self.recoveryMode = rM
 
     def parseReplicaFile(self):
 
@@ -408,7 +409,7 @@ class Replica:
             self.storeLock.acquire()
 
             writeLogInfo = open(self.logName, "a")
-            writeLogInfo.write(str(key) + ":" + val + "\n")
+            writeLogInfo.write(str(key) + ":" + val + str(time.time()) + "\n")
             writeLogInfo.close()
 
             self.keyValStore[key] = val;
@@ -461,10 +462,13 @@ class Replica:
 
     def performHintedHandoff(self):
 
+        msg = store.Msg()
+
+        time.sleep(int(self.replica_num))
+
         if(len(self.hints[self.coordinator]) > 0):
 
             print("I have hints for the coordinator")
-            msg = store.Msg()
 
             k = []
             v = []
@@ -476,15 +480,12 @@ class Replica:
             msg.hint.hintKey.extend(k)
             msg.hint.hintValue.extend(v)
 
-            self.neighborSockets[self.coordinator].sendall(msg.SerializeToString())
-
             print(self.hints[self.coordinator])
             self.hints[self.coordinator].clear()
             print(self.hints)
 
         else:
 
-            msg = store.Msg()
             print("No hints for the coordinator")
             noHint = []
             noHint.append(-1)
@@ -493,7 +494,7 @@ class Replica:
             msg.hint.hintKey.extend(noHint)
             msg.hint.hintValue.extend(noVal)
 
-            self.neighborSockets[self.coordinator].sendall(msg.SerializeToString())
+        self.neighborSockets[self.coordinator].sendall(msg.SerializeToString())
 
     #Wait for coordinator to assign a task
     def waitForInstruction(self):
@@ -503,7 +504,7 @@ class Replica:
         #Hinted Handoff Consistency Mechanism
         if(self.const_mech == 1):
 
-            performHintedHandoff()
+            self.performHintedHandoff()
 
         try:
 
@@ -541,7 +542,7 @@ class Replica:
 
             sys.exit()
 
-    def receiveHintedHandoff(self):
+    def receiveHintedHandoff(self, socket):
 
         print("")
         print("---------------Handling Hints---------------")
@@ -561,7 +562,7 @@ class Replica:
                     store_msg.ParseFromString(msg)
                     msgType = store_msg.WhichOneof("msg")
 
-                    if(self.parse_msg(socket, client_add, store_msg)):
+                    if(self.parse_msg(socket, ("", ""), store_msg)):
                         print("Got a hint from " + str(self.neighborSockets.index(socket)))
 
                     else:
@@ -578,7 +579,7 @@ class Replica:
         #Wait to receive hints if consistency mechanism is hinted handoff
         if(self.const_mech == 1):
 
-            receiveHintedHandoff()
+            self.receiveHintedHandoff(client_sock)
 
         infoMsg = client_sock.recv(1024)
 
@@ -734,7 +735,7 @@ class Replica:
 
 def main(args):
 
-    if len(args) != 3:
+    if len(args) != 3 and len(args) != 4:
         print("python3 replpica.py <replica number> <consistency mechanism>")
         sys.exit(1)
 
@@ -745,8 +746,13 @@ def main(args):
     elif (mech == "hinted"):
         mech = 1
 
+    rM = False
+    if(len(args) == 4):
+        if(args[3] == 1):
+            rM = True
+
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    replica_server = Replica(replicaNumber, clientSocket, mech)
+    replica_server = Replica(replicaNumber, clientSocket, mech, rM)
     replica_server.parseReplicaFile()
     replica_server.run()
 
