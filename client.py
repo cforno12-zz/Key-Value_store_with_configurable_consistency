@@ -10,6 +10,7 @@ class Client:
     def __init__(self, replicaList):
         self.replicaList = replicaList      #Store IP/Port of all replicas
         self.coordinatorSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.cur_coordinator = None
 
     def send_put_msg(self, key, val, consistency):
         msg = store_pb2.Msg()
@@ -37,18 +38,28 @@ class Client:
         msg = store_pb2.Msg()
         msg.get.key = key
         msg.get.level = consistency
-        print("sending get message")
         self.coordinatorSocket.sendall(msg.SerializeToString())
-        print("trying to recieve message")
         val = self.coordinatorSocket.recv(1024)
         if val:
             s = store_pb2.Msg()
             s.ParseFromString(val)
-            value = s.string_val.val
-            index = value.find("M") + 1
-            print ("Key: " + str(key) + " => " +  value[index:])
+
+            if s.WhichOneof("msg") == "string_val":
+                value = s.string_val.val
+                index = value.find("M") + 1
+                print ("Key: " + str(key) + " => " +  value[index:])
+
+            elif s.WhichOneof("msg") == "suc":
+                self.sendInitialization(int(self.cur_coordinator) + 1)
+                corIP = self.replicaList[self.cur_coordinator][0]
+                cor_port = self.replicaList[self.cur_coordinator][1]
+                self.coordinatorSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.coordinatorSocket.connect((corIP, cor_port))
+                self.send_get_req(key, consistency)
+                                            
 
     def sendInitialization(self, coordinator):
+        self.cur_coordinator = int(coordinator)
 
         for replica in replicaList:
 
