@@ -98,7 +98,7 @@ class Replica:
             contact = (int(begins) + i) % 4
             if int(contact) == int(self.replica_num):
                 continue
-            print("contacting replica " + str(contact) + " for timestamp")
+
             socket = self.neighborSockets[contact]
             # we want to find out who has the latest version of the object
             socket.sendall(msg.SerializeToString())
@@ -106,7 +106,6 @@ class Replica:
             parser = store.Msg()
             if response:
                 parser.ParseFromString(response)
-                print("we recieved message " + str(parser.pair_read.val) + " from replica " + str(contact))
                 if parser.WhichOneof("msg") == "pair_read":
                     timestamps[contact] = parser.pair_read.val
 
@@ -116,32 +115,32 @@ class Replica:
         max_timestamp = 0
         max_val = ""
         for replica_num, val in timestamps.items():
-            print("we got " + str(val) + " from replica " + str(replica_num))
             value, timestamp = val.split(":")
             timestamp = float(timestamp)
             if max_timestamp < timestamp:
                 max_timestamp = timestamp
                 max_val = value
 
+        
+
         self.keyValStore[key] = max_val + ":" + str(time.time())
+
 
         read_repair_msg = store.Msg()
         read_repair_msg.pair_write.key = key
-        read_repair_msg.pair_write.val = max_val + ":" + str(time.time())
+        read_repair_msg.pair_write.val = max_val
 
         for i in range(3):
             contact = (int(begins) + i) % 4
             if int(contact) == int(self.replica_num):
                 continue
             socket = self.neighborSockets[contact]
-            socket.sendall(msg.SerializeToString())
+            socket.sendall(read_repair_msg.SerializeToString())
 
     def get_consistency_helper(self, key, socket, contact):
         msg = store.Msg()
         msg.pair_read.key = key
         msg.pair_read.val = self.keyValStore[key].split(":")[0]
-
-        print("sending " + str(msg) + " to " + str(contact))
 
         socket.sendall(msg.SerializeToString())
 
@@ -162,7 +161,6 @@ class Replica:
                         if self.handling_read_repair == False:
                             self.handling_read_repair = True
                             self.RR_lock.release()
-                            print("we are repairing...")
                             self.read_repair(key)
                         else:
                             self.RR_lock.release()
@@ -198,7 +196,6 @@ class Replica:
         counter = 0 # use this as a time out mechanism
         time.sleep(3)
         while len(self.OKs) < OK_len and counter < 5: # we only need one OK from the replicas
-            print("number of OKs: " + str(len(self.OKs)))
             time.sleep(0.5)
             counter += 1
 
@@ -215,7 +212,6 @@ class Replica:
         if key in self.keyValStore:
             val_to_send = self.keyValStore[key].split(":")
             val_to_send = val_to_send[0]
-            print("this is the value we are sending: " + val_to_send)
             time_stamp = val_to_send[1]
 
             consistency_worked = self.get_consistency(key, level)
@@ -225,6 +221,19 @@ class Replica:
 
         else:
             #we contact the next replica in the ring
+            msg_to_send = store.Msg()
+            msg_to_send.suc.success = False
+
+            client_socket.sendall(msg_to_send.SerializeToString())
+
+            for i in range(4):
+                if i == int(self.replica_num):
+                    continue
+                sock = self.neighborSockets[i]
+                self.reset_msg(sock, 0)
+
+            consistency_worked = True
+            '''
             sock_to_contact = self.neighborSockets[(int(self.replica_num) + 1) % 4]
             msg_to_send = store.Msg()
             msg_to_send.get.key = key
@@ -240,6 +249,7 @@ class Replica:
                     msg.string_val.val = msg_to_respond.string_val.val
                     client_socket.sendall(msg.SerializeToString())
                     consistency_worked = True
+            '''
         if consistency_worked == True:
             return
         else:
@@ -433,6 +443,13 @@ class Replica:
 
         sock.sendall(msg.SerializeToString())
 
+        timestamp = sock.recv(1024)
+
+        parser = store.Msg()
+        parser.ParseFromString(timestamp)
+        if parser.WhichOneof("msg") == "timestamp":
+            self.retrieve_timestamp(key, sock)
+
     #Parse write-ahead log at beginning of execution
     def parseWriteLog(self):
 
@@ -473,8 +490,39 @@ class Replica:
         msg = store.Msg()
         msg.pair_read.key = key
         msg.pair_read.val = self.keyValStore[int(key)]
-        print("sending timestamp value: " + self.keyValStore[int(key)])
         socket.sendall(msg.SerializeToString())
+
+        write_this = socket.recv(1024)
+        #call pair_write
+
+        if write_this:
+            s = store.Msg()
+            s.ParseFromString(write_this)
+            if s.WhichOneof("msg") == "pair_write":
+                self.pair_write(s.pair_write.key, s.pair_write.val)
+
+
+    def pair_write(self, key, val):
+        
+        self.storeLock.acquire()
+        
+        writeLogInfo = open(self.logName, "a")
+        writeLogInfo.write(str(key) + ":" + val + ":" + str(time.time()) + "\n")
+        writeLogInfo.close()
+        
+        self.keyValStore[key] = val;
+        
+        self.storeLock.release()
+
+        if key in self.keyValStore:
+            
+            print("Added: " + val + " to location: " + str(key))
+            return "True"
+
+        else:
+
+            return "False"
+
 
     #Function to parse all protobuf messages
     def parse_msg(self, client_socket, client_add, msg):
@@ -503,31 +551,16 @@ class Replica:
             if(key == -1):
 
                 return "False"
-
-            self.storeLock.acquire()
-
-            writeLogInfo = open(self.logName, "a")
-            writeLogInfo.write(str(key) + ":" + val + ":" + str(time.time()) + "\n")
-            writeLogInfo.close()
-
-            self.keyValStore[key] = val;
-
-            self.storeLock.release()
-
-            if key in self.keyValStore:
-
-                print("Added: " + val + " to location: " + str(key))
-                return "True"
-
-            else:
-
-                return "False"
+            return self.pair_write(key, val)
 
         #Used to determine if an operation was successful or not
         elif msg_type == "suc":
 
             outcome = msg.suc.success
-            return outcome
+            if outcome:
+                return "True"
+            else:
+                return "False"
 
         #Initializes the coordinator for a request
         elif msg_type == "init":

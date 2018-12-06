@@ -1,4 +1,4 @@
-0 remote03.cs.binghamton.edu 10024
-1 remote03.cs.binghamton.edu 10025
-2 remote03.cs.binghamton.edu 10026
-3 remote03.cs.binghamton.edu 10027
+0 g7-11 10024
+1 g7-11 10025
+2 g7-11 10026
+3 g7-11 10027
